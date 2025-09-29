@@ -1,0 +1,64 @@
+influx_bridge:
+  influx:
+    url:
+      type: string
+      default_value: "http://localhost:8086"
+      description: "InfluxDB HTTP endpoint. Format: http(s)://host:port"
+      additional_constraints: "Must include scheme and port."
+    org:
+      type: string
+      default_value: "org"
+      description: "InfluxDB organization."
+    bucket:
+      type: string
+      default_value: "bucket"
+      description: "InfluxDB bucket to write to."
+    token:
+      type: string
+      default_value: "token"
+      description: "InfluxDB API token with write permission."
+      additional_constraints: "Treat as secret."
+
+  writer:
+    max_batch:
+      type: int
+      default_value: 1000
+      description: "Max points per HTTP write."
+      validation: { gt<>: [0] }
+    max_queue:
+      type: int
+      default_value: 100000
+      description: "Max queued points awaiting send."
+      validation: { gt_eq<>: [0] }
+    flush_ms:
+      type: int
+      default_value: 500
+      description: "Background flush period in milliseconds."
+      validation: { gt_eq<>: [1] }
+
+  mappings_ids:
+    type: string_array
+    default_value: []
+    description: "List of mapping IDs (e.g., ['imu','odom'])."
+
+  __map_mappings_ids:
+    topic:
+      type: string
+      description: "ROS 2 topic name to subscribe. Absolute topic recommended."
+      additional_constraints: "Example: /imu"
+    type:
+      type: string
+      description: "ROS 2 message type. Format: <pkg>/msg/<Type>."
+      additional_constraints: "Example: sensor_msgs/msg/Imu"
+    measurement:
+      type: string
+      default_value: ""
+      description: "InfluxDB measurement name. If empty, translator decides."
+    plugin:
+      type: string
+      default_value: ""
+      description: "Optional pluginlib class override. If empty uses 'influx_bridge/<Type>Translator'."
+    tag_keys:
+      type: string_array
+      default_value: []
+      description: "List of key=value fields to store as tags instead of fields."

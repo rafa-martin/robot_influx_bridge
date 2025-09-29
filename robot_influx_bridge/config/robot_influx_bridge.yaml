@@ -1,0 +1,23 @@
+/**:
+  ros__parameters:
+    influx:
+      url: "http://localhost:8086"
+      org: "org"
+      bucket: "bucket"
+      token: "token"
+
+    writer:
+      max_batch: 1000
+      max_queue: 100000
+      flush_ms: 500
+
+    mappings_ids:
+      - imu
+
+    imu:
+      topic: "/imu"
+      type: "robot_influx_bridge/ImuTranslator"
+      measurement: "imu"
+      plugin: ""
+
+

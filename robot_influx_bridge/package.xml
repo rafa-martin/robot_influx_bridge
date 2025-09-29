@@ -1,0 +1,21 @@
+<?xml version="1.0"?>
+<?xml-model
+    href="http://download.ros.org/schema/package_format3.xsd"
+    schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>robot_influx_bridge</name>
+  <version>0.0.0</version>
+  <description>
+    Robotnik common software for ROS2 packages.
+  </description>
+  <maintainer email="theverbat@gmail.com">Rafael Martín</maintainer>
+  <license>MIT</license>
+
+  <build_depend>ament_cmake</build_depend>
+  <depend>rclcpp_components</depend>
+  <depend>backward_ros</depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>
