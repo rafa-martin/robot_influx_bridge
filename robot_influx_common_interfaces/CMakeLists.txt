@@ -6,7 +6,6 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "(GNU|Clang)")
 endif()
 
 find_package(ament_cmake REQUIRED)
-find_package(ament_cmake_ros REQUIRED)
 find_package(pluginlib REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(sensor_msgs REQUIRED)

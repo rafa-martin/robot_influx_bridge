@@ -3,12 +3,13 @@
 
 #pragma once
 
-#include <mutex>
-#include <condition_variable>
-#include <queue>
-#include <thread>
 #include <atomic>
+#include <chrono>
+#include <condition_variable>
+#include <mutex>
+#include <queue>
 #include <string>
+#include <thread>
 #include <vector>
 
 namespace robot_influx_bridge {

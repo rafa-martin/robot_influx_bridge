@@ -6,15 +6,12 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "(GNU|Clang)")
 endif()
 
 find_package(ament_cmake REQUIRED)
-ament_package_xml()
 
 find_package(generate_parameter_library REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(rclcpp_components REQUIRED)
 find_package(pluginlib REQUIRED)
-find_package(ament_cmake_ros REQUIRED)
 find_package(CURL REQUIRED)
-find_package(backward_ros REQUIRED)
 
 # CORE
 add_library(influx_bridge_lib
@@ -32,6 +29,7 @@ generate_parameter_library(
 )
 
 add_library(influx_bridge SHARED
+  src/influx_error.cpp
   src/influx_bridge.cpp
 )
 target_include_directories(influx_bridge PUBLIC

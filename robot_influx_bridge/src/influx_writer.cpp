@@ -2,8 +2,60 @@
 
 #include <chrono>
 #include <thread>
+#include <stdexcept>
+#include <iostream>
 
+#include <robot_influx_bridge/influx_error.hpp>
 #include <robot_influx_bridge/influx_writer.hpp>
+
+// HELPER FUNCTIONS
+namespace {
+size_t write_cb(char* ptr, size_t size, size_t nmemb, void* userdata) {
+  auto* out = static_cast<std::string*>(userdata);
+  out->append(ptr, size * nmemb);
+  return size * nmemb;
+}
+
+size_t header_cb(char* buffer, size_t size, size_t nitems, void* userdata) {
+  const size_t total = size * nitems;
+  auto* content_type = static_cast<std::string*>(userdata);
+  std::string line(buffer, total);
+  const std::string key = "Content-Type:";
+  if (line.size() >= key.size() && std::equal(key.begin(), key.end(), line.begin(),
+      [](char a, char b){ return std::tolower(a) == std::tolower(b); })) {
+    // value after colon
+    auto pos = line.find(':');
+    if (pos != std::string::npos) {
+      *content_type = line.substr(pos + 1);
+      // trim
+      auto& s = *content_type;
+      s.erase(0, s.find_first_not_of(" \t\r\n"));
+      s.erase(s.find_last_not_of(" \t\r\n") + 1);
+    }
+  }
+  return total;
+}
+
+// very small JSON extractor for {"message":"...","code":"..."}
+std::string extract_json_string(const std::string& json, const std::string& key) {
+  const std::string q = "\"" + key + "\"";
+  auto k = json.find(q);
+  if (k == std::string::npos) return {};
+  k = json.find(':', k);
+  if (k == std::string::npos) return {};
+  k = json.find('"', k);
+  if (k == std::string::npos) return {};
+  auto e = json.find('"', k + 1);
+  if (e == std::string::npos) return {};
+  return json.substr(k + 1, e - k - 1);
+}
+
+std::string trim(std::string s) {
+  s.erase(0, s.find_first_not_of(" \t\r\n"));
+  s.erase(s.find_last_not_of(" \t\r\n") + 1);
+  return s;
+}
+}  // namespace
 
 using namespace std::chrono_literals;
 namespace robot_influx_bridge {
@@ -46,7 +98,12 @@ void InfluxWriter::run(){
     for(size_t i=0;i<batch.size();++i){ body += batch[i]; body.push_back('\n'); }
     // retry with basic backoff
     for(int attempt=0; attempt<5; ++attempt){
-      if(post(body)) break;
+      try {
+        if(post(body)) break;
+      } catch(const InfluxError& e) {
+        // log and retry
+        std::cerr << "InfluxDB write error: " << e.what() << std::endl;
+      }
       std::this_thread::sleep_for(std::chrono::milliseconds(std::min(5000, 50 * (1<<attempt))));
     }
     batch.clear();
@@ -54,21 +111,90 @@ void InfluxWriter::run(){
 }
 
 bool InfluxWriter::post(const std::string& body){
+  // initialize curl session
   CURL *curl = curl_easy_init();
-  if(!curl) return false;
-  struct curl_slist *headers=nullptr;
-  headers = curl_slist_append(headers, ("Authorization: Token " + token_).c_str());
-  headers = curl_slist_append(headers, "Content-Type: text/plain; charset=utf-8");
+  if(!curl) throw std::runtime_error("failed to initialize curl");
+
+  // RAII cleanup, C++ free style
+  struct CurlCleanup {
+    CURL* h; curl_slist* headers;
+    ~CurlCleanup(){ if (headers) curl_slist_free_all(headers); if (h) curl_easy_cleanup(h); }
+  } cleanup{curl, nullptr};
+
+  cleanup.headers = curl_slist_append(cleanup.headers, ("Authorization: Token " + token_).c_str());
+  cleanup.headers = curl_slist_append(cleanup.headers, "Content-Type: text/plain; charset=utf-8");
+  cleanup.headers = curl_slist_append(cleanup.headers, "Accept: application/json");
+
+  // buffers
+  std::string resp_body;
+  std::string resp_ct;  // content-type
+  char errbuf[CURL_ERROR_SIZE] = {0};
+
   curl_easy_setopt(curl, CURLOPT_URL, endpoint_.c_str());
-  curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
+  curl_easy_setopt(curl, CURLOPT_HTTPHEADER, cleanup.headers);
+  curl_easy_setopt(curl, CURLOPT_POST, 1L);
   curl_easy_setopt(curl, CURLOPT_POSTFIELDS, body.c_str());
-  curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, body.size());
+  curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE_LARGE, static_cast<curl_off_t>(body.size()));
+  curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT_MS, 2000L);
   curl_easy_setopt(curl, CURLOPT_TIMEOUT_MS, 2000L);
+  curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1L);
+  curl_easy_setopt(curl, CURLOPT_TCP_KEEPALIVE, 1L);
+  curl_easy_setopt(curl, CURLOPT_ACCEPT_ENCODING, "");
+  curl_easy_setopt(curl, CURLOPT_USERAGENT, "influx-writer/1.0");
+  curl_easy_setopt(curl, CURLOPT_ERRORBUFFER, errbuf);
+  curl_easy_setopt(curl, CURLOPT_FAILONERROR, 1L); // make HTTP >=400 a CURLE_HTTP_RETURNED_ERROR
+
+  // capture body and headers
+  curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_cb);
+  curl_easy_setopt(curl, CURLOPT_WRITEDATA, &resp_body);
+  curl_easy_setopt(curl, CURLOPT_HEADERFUNCTION, header_cb);
+  curl_easy_setopt(curl, CURLOPT_HEADERDATA, &resp_ct);
+
+  // perform
   CURLcode res = curl_easy_perform(curl);
-  long code = 0; curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &code);
-  curl_slist_free_all(headers);
-  curl_easy_cleanup(curl);
-  return (res == CURLE_OK) && (code >= 200 && code < 300);
+
+  long http = 0;
+  curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http);
+
+  // handle errors
+  if (res != CURLE_OK) {
+    std::string msg = errbuf[0] ? errbuf : curl_easy_strerror(res);
+    // include HTTP status if available; libcurl uses CURLE_HTTP_RETURNED_ERROR for >=400 with FAILONERROR
+    if (res == CURLE_HTTP_RETURNED_ERROR) {
+      // best-effort parse of JSON error
+      std::string parsed;
+      if (!resp_body.empty() && resp_ct.find("application/json") != std::string::npos) {
+        const auto code = extract_json_string(resp_body, "code");
+        const auto m = extract_json_string(resp_body, "message");
+        if (!m.empty()) parsed = m;
+        if (!code.empty()) parsed = code + ": " + parsed;
+      }
+      if (parsed.empty()) parsed = trim(resp_body);
+      throw InfluxHttpError(
+        parsed.empty() ? ("HTTP " + std::to_string(http)) : parsed,
+        http, res, resp_body
+      );
+    }
+    throw InfluxNetworkError(msg, http, res, resp_body);
+  }
+
+  // success codes only
+  if (http < 200 || http >= 300) {
+    std::string parsed;
+    if (!resp_body.empty() && resp_ct.find("application/json") != std::string::npos) {
+      const auto code = extract_json_string(resp_body, "code");
+      const auto m = extract_json_string(resp_body, "message");
+      if (!m.empty()) parsed = m;
+      if (!code.empty()) parsed = code + ": " + parsed;
+    }
+    if (parsed.empty()) parsed = trim(resp_body);
+    throw InfluxHttpError(
+      parsed.empty() ? ("HTTP " + std::to_string(http)) : parsed,
+      http, CURLE_OK, resp_body
+    );
+  }
+
+  return true;
 }
 
 } // namespace robot_influx_bridge

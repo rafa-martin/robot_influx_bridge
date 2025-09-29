@@ -1,7 +1,5 @@
 #include <robot_influx_bridge/influx_bridge.hpp>
 
-#include <unordered_map>
-
 namespace robot_influx_bridge {
 
 
