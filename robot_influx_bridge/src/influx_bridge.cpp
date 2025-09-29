@@ -18,6 +18,7 @@ InfluxBridgeNode::InfluxBridgeNode(rclcpp::NodeOptions const& options)
 
   // writer
   writer_ = std::make_unique<robot_influx_bridge::InfluxWriter>(
+    this->get_logger(),
     params_.influx.url,
     params_.influx.org,
     params_.influx.bucket,

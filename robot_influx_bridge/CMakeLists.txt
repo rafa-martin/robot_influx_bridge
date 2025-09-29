@@ -20,7 +20,7 @@ add_library(influx_bridge_lib
 target_include_directories(influx_bridge_lib PUBLIC
   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>
   $<INSTALL_INTERFACE:include/${PROJECT_NAME}>)
-target_link_libraries(influx_bridge_lib PUBLIC CURL::libcurl)
+target_link_libraries(influx_bridge_lib PUBLIC CURL::libcurl rclcpp::rclcpp)
 
 # ROS2 NODE
 generate_parameter_library(

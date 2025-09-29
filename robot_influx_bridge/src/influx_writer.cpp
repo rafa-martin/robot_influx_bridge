@@ -3,10 +3,11 @@
 #include <chrono>
 #include <thread>
 #include <stdexcept>
-#include <iostream>
 
 #include <robot_influx_bridge/influx_error.hpp>
 #include <robot_influx_bridge/influx_writer.hpp>
+
+#include <rclcpp/logging.hpp>
 
 // HELPER FUNCTIONS
 namespace {
@@ -60,10 +61,11 @@ std::string trim(std::string s) {
 using namespace std::chrono_literals;
 namespace robot_influx_bridge {
 
-InfluxWriter::InfluxWriter(const std::string& url,const std::string& org,
+InfluxWriter::InfluxWriter(const rclcpp::Logger& logger,
+    const std::string& url,const std::string& org,
     const std::string& bucket,const std::string& token,size_t max_batch,size_t max_queue,
     std::chrono::milliseconds flush)
-: token_(token), max_batch_(max_batch), max_queue_(max_queue), flush_(flush)
+: token_(token), max_batch_(max_batch), max_queue_(max_queue), flush_(flush), logger_(logger)
 {
   endpoint_ = url + "/api/v2/write?org=" + org + "&bucket=" + bucket + "&precision=ns";
   curl_global_init(CURL_GLOBAL_DEFAULT);
@@ -77,10 +79,21 @@ InfluxWriter::~InfluxWriter(){
 
 bool InfluxWriter::enqueue(std::string line){
   std::unique_lock<std::mutex> lk(m_);
-  if(q_.size() >= max_queue_) return false;
+  if(q_.size() >= max_queue_) {
+    lk.unlock();
+    set_last_error("Queue is full");
+    return false;
+  }
   q_.push(std::move(line));
   cv_.notify_one();
+  lk.unlock();
+  set_last_error("");
   return true;
+}
+
+std::string InfluxWriter::last_error() const {
+  std::lock_guard<std::mutex> lk(error_mutex_);
+  return last_error_;
 }
 
 void InfluxWriter::run(){
@@ -99,10 +112,18 @@ void InfluxWriter::run(){
     // retry with basic backoff
     for(int attempt=0; attempt<5; ++attempt){
       try {
-        if(post(body)) break;
+        if(post(body)) {
+          set_last_error("");
+          break;
+        }
       } catch(const InfluxError& e) {
-        // log and retry
-        std::cerr << "InfluxDB write error: " << e.what() << std::endl;
+        std::string reason = e.what();
+        if (e.http_status() > 0) {
+          reason = "HTTP " + std::to_string(e.http_status()) + ": " + reason;
+        }
+        RCLCPP_ERROR(logger_, "InfluxDB write error (attempt %d/%d): %s",
+          attempt + 1, 5, reason.c_str());
+        set_last_error(reason);
       }
       std::this_thread::sleep_for(std::chrono::milliseconds(std::min(5000, 50 * (1<<attempt))));
     }
@@ -195,6 +216,11 @@ bool InfluxWriter::post(const std::string& body){
   }
 
   return true;
+}
+
+void InfluxWriter::set_last_error(std::string message) const {
+  std::lock_guard<std::mutex> lk(error_mutex_);
+  last_error_ = std::move(message);
 }
 
 } // namespace robot_influx_bridge

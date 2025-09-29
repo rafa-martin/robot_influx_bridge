@@ -4,7 +4,7 @@
       url: "http://localhost:8086"
       org: "myorg"
       bucket: "mybucket"
-      token: "my-super-secret-auth-tokendd"
+      token: "my-super-secret-auth-token"
 
     writer:
       max_batch: 1000
