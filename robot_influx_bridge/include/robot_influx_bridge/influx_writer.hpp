@@ -22,7 +22,8 @@ public:
                const std::string& url, const std::string& org,
                const std::string& bucket, const std::string& token,
                size_t max_batch=1000, size_t max_queue=100000,
-               std::chrono::milliseconds flush=std::chrono::milliseconds(500));
+               std::chrono::milliseconds flush=std::chrono::milliseconds(500),
+               bool use_gzip=false);
   ~InfluxWriter();
   bool enqueue(std::string line);
   std::string last_error() const;
@@ -43,6 +44,7 @@ private:
   mutable std::string last_error_;
   std::atomic<bool> has_logged_success_{false};
   std::atomic<bool> error_since_last_success_{false};
+  bool use_gzip_;
 };
 
 } // namespace robot_influx_bridge

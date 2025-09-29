@@ -35,6 +35,10 @@ influx_bridge:
       default_value: 500
       description: "Background flush period in milliseconds."
       validation: { gt_eq<>: [1] }
+    use_gzip:
+      type: bool
+      default_value: false
+      description: "Compress HTTP payloads with gzip."
 
   mappings_ids:
     type: string_array

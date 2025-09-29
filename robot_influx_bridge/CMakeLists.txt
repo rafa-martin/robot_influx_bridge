@@ -12,6 +12,7 @@ find_package(rclcpp REQUIRED)
 find_package(rclcpp_components REQUIRED)
 find_package(pluginlib REQUIRED)
 find_package(CURL REQUIRED)
+find_package(ZLIB REQUIRED)
 
 # CORE
 add_library(influx_bridge_lib
@@ -20,7 +21,7 @@ add_library(influx_bridge_lib
 target_include_directories(influx_bridge_lib PUBLIC
   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>
   $<INSTALL_INTERFACE:include/${PROJECT_NAME}>)
-target_link_libraries(influx_bridge_lib PUBLIC CURL::libcurl rclcpp::rclcpp)
+target_link_libraries(influx_bridge_lib PUBLIC CURL::libcurl rclcpp::rclcpp ZLIB::ZLIB)
 
 # ROS2 NODE
 generate_parameter_library(
@@ -66,6 +67,6 @@ install(DIRECTORY include/
 
 ament_export_targets(${PROJECT_NAME}Targets HAS_LIBRARY_TARGET)
 ament_export_include_directories(include)
-ament_export_dependencies(pluginlib rclcpp rclcpp_components CURL)
+ament_export_dependencies(pluginlib rclcpp rclcpp_components CURL ZLIB)
 
 ament_package()

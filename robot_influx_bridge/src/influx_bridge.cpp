@@ -25,7 +25,8 @@ InfluxBridgeNode::InfluxBridgeNode(rclcpp::NodeOptions const& options)
     params_.influx.token,
     static_cast<size_t>(params_.writer.max_batch),
     static_cast<size_t>(params_.writer.max_queue),
-    std::chrono::milliseconds(params_.writer.flush_ms));
+    std::chrono::milliseconds(params_.writer.flush_ms),
+    params_.writer.use_gzip);
 
   // translator loader
   translator_loader_ = std::make_unique<pluginlib::ClassLoader<TranslatorBase>>(

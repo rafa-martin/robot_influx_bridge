@@ -6,6 +6,9 @@
 #include <sstream>
 #include <stdexcept>
 #include <thread>
+#include <vector>
+
+#include <zlib.h>
 
 #include <robot_influx_bridge/influx_error.hpp>
 #include <robot_influx_bridge/influx_writer.hpp>
@@ -66,6 +69,58 @@ std::string trim(std::string s) {
   s.erase(0, s.find_first_not_of(" \t\r\n"));
   s.erase(s.find_last_not_of(" \t\r\n") + 1);
   return s;
+}
+
+std::string compress_gzip_string(const std::string& input) {
+  if (input.empty()) {
+    // zlib still produces a valid gzip stream for empty input, but avoid work
+    // by returning the precomputed gzip header/footer for an empty payload.
+    static const unsigned char empty_gzip[] = {
+      0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x03,
+      0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+    };
+    return std::string(reinterpret_cast<const char*>(empty_gzip), sizeof(empty_gzip));
+  }
+
+  z_stream stream{};
+  stream.next_in = reinterpret_cast<Bytef*>(const_cast<char*>(input.data()));
+  stream.avail_in = static_cast<uInt>(input.size());
+
+  const int window_bits = 15 + 16;  // 15 = max window, +16 to add gzip header
+  const int result = deflateInit2(&stream, Z_DEFAULT_COMPRESSION, Z_DEFLATED,
+                                  window_bits, 8, Z_DEFAULT_STRATEGY);
+  if (result != Z_OK) {
+    throw std::runtime_error("Failed to initialize zlib stream for gzip compression");
+  }
+
+  std::string output;
+  std::vector<unsigned char> buffer(16384);
+  int flush = Z_NO_FLUSH;
+
+  do {
+    stream.next_out = buffer.data();
+    stream.avail_out = static_cast<uInt>(buffer.size());
+
+    if (stream.avail_in == 0) {
+      flush = Z_FINISH;
+    }
+
+    const int deflate_result = deflate(&stream, flush);
+    if (deflate_result == Z_STREAM_ERROR) {
+      deflateEnd(&stream);
+      throw std::runtime_error("Error while compressing payload with gzip");
+    }
+
+    const size_t produced = buffer.size() - stream.avail_out;
+    output.append(reinterpret_cast<const char*>(buffer.data()), produced);
+
+    if (deflate_result == Z_STREAM_END) {
+      break;
+    }
+  } while (stream.avail_out == 0 || flush != Z_FINISH);
+
+  deflateEnd(&stream);
+  return output;
 }
 
 const char* http_reason_phrase(long status) {
@@ -150,8 +205,9 @@ namespace robot_influx_bridge {
 InfluxWriter::InfluxWriter(const rclcpp::Logger& logger,
     const std::string& url,const std::string& org,
     const std::string& bucket,const std::string& token,size_t max_batch,size_t max_queue,
-    std::chrono::milliseconds flush)
-: token_(token), max_batch_(max_batch), max_queue_(max_queue), flush_(flush), logger_(logger)
+    std::chrono::milliseconds flush,bool use_gzip)
+: token_(token), max_batch_(max_batch), max_queue_(max_queue), flush_(flush), logger_(logger),
+  use_gzip_(use_gzip)
 {
   endpoint_ = url + "/api/v2/write?org=" + org + "&bucket=" + bucket + "&precision=ns";
   curl_global_init(CURL_GLOBAL_DEFAULT);
@@ -242,6 +298,18 @@ bool InfluxWriter::post(const std::string& body){
   cleanup.headers = curl_slist_append(cleanup.headers, "Content-Type: text/plain; charset=utf-8");
   cleanup.headers = curl_slist_append(cleanup.headers, "Accept: application/json");
 
+  std::string compressed_body;
+  const std::string* payload = &body;
+  if (use_gzip_) {
+    try {
+      compressed_body = compress_gzip_string(body);
+    } catch (const std::exception& e) {
+      throw InfluxError(std::string("Failed to gzip payload: ") + e.what());
+    }
+    payload = &compressed_body;
+    cleanup.headers = curl_slist_append(cleanup.headers, "Content-Encoding: gzip");
+  }
+
   // buffers
   std::string resp_body;
   std::string resp_ct;  // content-type
@@ -250,8 +318,8 @@ bool InfluxWriter::post(const std::string& body){
   curl_easy_setopt(curl, CURLOPT_URL, endpoint_.c_str());
   curl_easy_setopt(curl, CURLOPT_HTTPHEADER, cleanup.headers);
   curl_easy_setopt(curl, CURLOPT_POST, 1L);
-  curl_easy_setopt(curl, CURLOPT_POSTFIELDS, body.c_str());
-  curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE_LARGE, static_cast<curl_off_t>(body.size()));
+  curl_easy_setopt(curl, CURLOPT_POSTFIELDS, payload->c_str());
+  curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE_LARGE, static_cast<curl_off_t>(payload->size()));
   curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT_MS, 2000L);
   curl_easy_setopt(curl, CURLOPT_TIMEOUT_MS, 2000L);
   curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1L);

@@ -4,12 +4,13 @@
       url: "http://localhost:8086"
       org: "myorg"
       bucket: "mybucket"
-      token: "my-super-secret-auth-tokendd"
+      token: "my-super-secret-auth-token"
 
     writer:
       max_batch: 1000
       max_queue: 100000
       flush_ms: 500
+      use_gzip: true
 
     mappings_ids:
       - imu
