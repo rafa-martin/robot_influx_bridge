@@ -41,6 +41,8 @@ private:
   std::thread th_;
   mutable std::mutex error_mutex_;
   mutable std::string last_error_;
+  std::atomic<bool> has_logged_success_{false};
+  std::atomic<bool> error_since_last_success_{false};
 };
 
 } // namespace robot_influx_bridge
