@@ -1,0 +1,14 @@
+<library path="robot_influx_common_interfaces_translators">
+  <class type="robot_influx_common_interfaces::ImuTranslator"
+         base_class_type="robot_influx_bridge::TranslatorBase">
+    <description>Translates sensor_msgs/Imu messages to InfluxDB points</description>
+  </class>
+  <class type="robot_influx_common_interfaces::OdometryTranslator"
+         base_class_type="robot_influx_bridge::TranslatorBase">
+    <description>Translates nav_msgs/Odometry messages to InfluxDB points</description>
+  </class>
+  <class type="robot_influx_common_interfaces::BatteryStateTranslator"
+         base_class_type="robot_influx_bridge::TranslatorBase">
+    <description>Translates sensor_msgs/BatteryState messages to InfluxDB points</description>
+  </class>
+</library>

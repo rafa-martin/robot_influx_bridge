@@ -46,18 +46,14 @@ influx_bridge:
       type: string
       description: "ROS 2 topic name to subscribe. Absolute topic recommended."
       additional_constraints: "Example: /imu"
-    type:
+    translator:
       type: string
-      description: "ROS 2 message type. Format: <pkg>/msg/<Type>."
-      additional_constraints: "Example: sensor_msgs/msg/Imu"
+      description: "Pluginlib class name of the translator to use."
+      additional_constraints: "Example: robot_influx_common_interfaces::ImuTranslator"
     measurement:
       type: string
       default_value: ""
       description: "InfluxDB measurement name. If empty, translator decides."
-    plugin:
-      type: string
-      default_value: ""
-      description: "Optional pluginlib class override. If empty uses 'influx_bridge/<Type>Translator'."
     tag_keys:
       type: string_array
       default_value: []

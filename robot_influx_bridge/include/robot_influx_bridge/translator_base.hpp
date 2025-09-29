@@ -6,13 +6,13 @@
 #include <rclcpp/serialized_message.hpp>
 #include <string>
 #include <unordered_map>
+#include <vector>
 
 namespace robot_influx_bridge {
 
-struct Context {
-  // static config for this mapping
+struct TranslatorContext {
   std::string measurement;
-  std::unordered_map<std::string,std::string> static_tags; // tag_key->value
+  std::unordered_map<std::string, std::string> static_tags;
 };
 
 class TranslatorBase {
@@ -23,7 +23,7 @@ public:
   // Build one or more line protocol lines from a serialized message.
   virtual std::vector<std::string> to_line_protocol(
       const rclcpp::SerializedMessage & msg,
-      const Context & ctx) = 0;
+      const TranslatorContext & context) = 0;
 };
 
 } // namespace robot_influx_bridge

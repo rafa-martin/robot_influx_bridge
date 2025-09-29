@@ -3,10 +3,10 @@
     href="http://download.ros.org/schema/package_format3.xsd"
     schematypens="http://www.w3.org/2001/XMLSchema"?>
 <package format="3">
-  <name>robot_influx_bridge</name>
+  <name>robot_influx_common_interfaces</name>
   <version>0.0.0</version>
   <description>
-    Robotnik common software for ROS2 packages.
+    Plugin-based translators that convert common ROS 2 messages into InfluxDB line protocol.
   </description>
   <maintainer email="theverbat@gmail.com">Rafael Martín</maintainer>
   <license>MIT</license>
@@ -14,18 +14,19 @@
   <buildtool_depend>ament_cmake</buildtool_depend>
 
   <build_depend>ament_cmake_ros</build_depend>
-  <build_depend>generate_parameter_library</build_depend>
   <build_depend>pluginlib</build_depend>
   <build_depend>rclcpp</build_depend>
-  <build_depend>rclcpp_components</build_depend>
-  <build_depend>curl</build_depend>
-  <build_depend>backward_ros</build_depend>
+  <build_depend>sensor_msgs</build_depend>
+  <build_depend>nav_msgs</build_depend>
+  <build_depend>robot_influx_bridge</build_depend>
+  <build_depend>builtin_interfaces</build_depend>
 
   <exec_depend>pluginlib</exec_depend>
   <exec_depend>rclcpp</exec_depend>
-  <exec_depend>rclcpp_components</exec_depend>
-  <exec_depend>curl</exec_depend>
-  <exec_depend>backward_ros</exec_depend>
+  <exec_depend>sensor_msgs</exec_depend>
+  <exec_depend>nav_msgs</exec_depend>
+  <exec_depend>robot_influx_bridge</exec_depend>
+  <exec_depend>builtin_interfaces</exec_depend>
 
   <export>
     <build_type>ament_cmake</build_type>

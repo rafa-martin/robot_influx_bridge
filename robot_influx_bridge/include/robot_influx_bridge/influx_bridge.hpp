@@ -8,18 +8,18 @@
 #include <robot_influx_bridge/translator_base.hpp>
 #include <robot_influx_bridge/influx_writer.hpp>
 
-#include <robot_influx_bridge/bridge_parameters.hpp>
+#include <memory>
+#include <string>
+#include <vector>
 
-using robot_influx_bridge::TranslatorBase;
-using robot_influx_bridge::Context;
+#include <robot_influx_bridge/bridge_parameters.hpp>
 
 namespace robot_influx_bridge {
 
-struct Mapping {
-  std::string topic;
-  std::string type;        // "pkg/msg/Type"
-  Context ctx;
-  std::shared_ptr<rclcpp::GenericSubscription> sub;
+struct TopicMapping {
+  std::string topic_name;
+  TranslatorContext translator_context;
+  std::shared_ptr<rclcpp::GenericSubscription> subscription;
   std::shared_ptr<TranslatorBase> translator;
 };
 
@@ -30,12 +30,11 @@ private:
   std::shared_ptr<influx_bridge::ParamListener> param_listener_;
   influx_bridge::Params params_;
 
-  std::unique_ptr<pluginlib::ClassLoader<TranslatorBase>> loader_;
+  std::unique_ptr<pluginlib::ClassLoader<TranslatorBase>> translator_loader_;
   std::unique_ptr<robot_influx_bridge::InfluxWriter> writer_;
-  std::vector<Mapping> mappings_;
-  rclcpp::TimerBase::SharedPtr timer_;
+  std::vector<TopicMapping> topic_mappings_;
 
-  void add_mapping_from_params(const std::string& id);
+  void addMappingFromParams(const std::string& mapping_id);
 };
 
 }  // namespace robot_influx_bridge

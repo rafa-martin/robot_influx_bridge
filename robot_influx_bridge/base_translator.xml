@@ -1,5 +1,0 @@
-<library path="imu_translator">
-  <class name="robot_influx_bridge/ImuTranslator"
-         type="robot_influx_bridge::ImuTranslator"
-         base_class_type="robot_influx_bridge::TranslatorBase"/>
-</library>

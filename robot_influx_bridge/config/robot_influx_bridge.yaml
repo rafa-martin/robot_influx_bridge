@@ -2,9 +2,9 @@
   ros__parameters:
     influx:
       url: "http://localhost:8086"
-      org: "org"
-      bucket: "bucket"
-      token: "token"
+      org: "myorg"
+      bucket: "mybucket"
+      token: "my-super-secret-auth-token"
 
     writer:
       max_batch: 1000
@@ -16,8 +16,7 @@
 
     imu:
       topic: "/imu"
-      type: "robot_influx_bridge/ImuTranslator"
+      translator: "robot_influx_common_interfaces::ImuTranslator"
       measurement: "imu"
-      plugin: ""
-
-
+      tag_keys:
+        - frame_id=imu_link
