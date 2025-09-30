@@ -45,6 +45,8 @@ private:
   std::atomic<bool> has_logged_success_{false};
   std::atomic<bool> error_since_last_success_{false};
   bool use_gzip_;
+  bool logged_shutdown_flush_started_{false};
+  bool logged_shutdown_flush_completed_{false};
 };
 
 } // namespace robot_influx_bridge

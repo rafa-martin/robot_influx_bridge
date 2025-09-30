@@ -221,6 +221,8 @@ InfluxWriter::~InfluxWriter(){
 
 bool InfluxWriter::enqueue(std::string line){
   std::unique_lock<std::mutex> lk(m_);
+  // debug
+  // RCLCPP_INFO(logger_, "Enqueuing InfluxDB line: %s", line.c_str());
   if(q_.size() >= max_queue_) {
     lk.unlock();
     set_last_error("Queue is full");
@@ -239,46 +241,135 @@ std::string InfluxWriter::last_error() const {
 }
 
 void InfluxWriter::run(){
-  std::vector<std::string> batch; batch.reserve(max_batch_);
-  while(!stop_){
+  std::vector<std::string> batch;
+  batch.reserve(max_batch_);
+  while (true) {
     std::unique_lock<std::mutex> lk(m_);
-    cv_.wait_for(lk, flush_, [&]{ return stop_ || q_.size() >= max_batch_ || !q_.empty(); });
-    while(!q_.empty() && batch.size() < max_batch_){
-      batch.push_back(std::move(q_.front())); q_.pop();
+    if (batch.empty()) {
+      cv_.wait_for(lk, flush_, [&] {
+        return stop_ || q_.size() >= max_batch_ || !q_.empty();
+      });
+      while (!q_.empty() && batch.size() < max_batch_) {
+        batch.push_back(std::move(q_.front()));
+        q_.pop();
+      }
     }
+
+    const bool shutting_down = stop_.load(std::memory_order_relaxed);
+    const bool queue_empty = q_.empty();
+
+    if (batch.empty()) {
+      if (shutting_down && queue_empty) {
+        if (logged_shutdown_flush_started_ && !logged_shutdown_flush_completed_) {
+          logged_shutdown_flush_completed_ = true;
+          RCLCPP_INFO(logger_, "Shutdown flush completed. All buffered measurements were uploaded.");
+        }
+        break;
+      }
+      continue;
+    }
+
     lk.unlock();
-    if(batch.empty()) continue;
+
+    if (shutting_down && !logged_shutdown_flush_started_) {
+      logged_shutdown_flush_started_ = true;
+      const size_t lines = batch.size();
+      const char* plural = lines == 1 ? "" : "s";
+      RCLCPP_INFO(logger_,
+        "Shutdown requested. Flushing %zu queued measurement%s before exit...",
+        lines, plural);
+    }
+
     std::string body;
     body.reserve(batch.size() * 64);
-    for(size_t i=0;i<batch.size();++i){ body += batch[i]; body.push_back('\n'); }
-    // retry with basic backoff
-    for(int attempt=0; attempt<5; ++attempt){
+    for (size_t i = 0; i < batch.size(); ++i) {
+      body += batch[i];
+      body.push_back('\n');
+    }
+
+    const size_t lines = batch.size();
+    const char* plural = lines == 1 ? "" : "s";
+    bool success = false;
+    int attempt = 0;
+    while (true) {
       try {
-        if(post(body)) {
-          set_last_error("");
-          const bool had_error = error_since_last_success_.exchange(false, std::memory_order_relaxed);
-          const size_t lines = batch.size();
-          const char* plural = lines == 1 ? "" : "s";
-          if (!has_logged_success_.exchange(true, std::memory_order_relaxed)) {
-            RCLCPP_INFO(logger_, "InfluxDB write succeeded (%zu line%s). Data upload is active.",
-              lines, plural);
-          } else if (had_error) {
-            RCLCPP_INFO(logger_, "InfluxDB write succeeded (%zu line%s). Data upload has recovered.",
-              lines, plural);
-          } else {
-            RCLCPP_DEBUG(logger_, "InfluxDB write succeeded (%zu line%s).", lines, plural);
-          }
-          break;
+        // debug
+        RCLCPP_INFO(logger_, "Posting %zu measurement%s to InfluxDB...", lines, plural);
+        if (post(body)) {
+          success = true;
         }
-      } catch(const InfluxError& e) {
+      } catch (const InfluxError& e) {
         error_since_last_success_.store(true, std::memory_order_relaxed);
         const std::string reason = describe_error(e);
-        RCLCPP_ERROR(logger_, "InfluxDB write attempt %d/%d failed: %s",
-          attempt + 1, 5, reason.c_str());
+        RCLCPP_WARN(logger_, "InfluxDB write attempt %d failed: %s", attempt + 1, reason.c_str());
         set_last_error(reason);
       }
-      std::this_thread::sleep_for(std::chrono::milliseconds(std::min(5000, 50 * (1<<attempt))));
+
+      if (success) {
+        set_last_error("");
+        const bool had_error = error_since_last_success_.exchange(false, std::memory_order_relaxed);
+        if (!has_logged_success_.exchange(true, std::memory_order_relaxed)) {
+          RCLCPP_INFO(logger_, "InfluxDB write succeeded (%zu line%s). Data upload is active.",
+            lines, plural);
+        } else if (had_error) {
+          RCLCPP_INFO(logger_, "InfluxDB write succeeded (%zu line%s). Data upload has recovered.",
+            lines, plural);
+        } else {
+          RCLCPP_DEBUG(logger_, "InfluxDB write succeeded (%zu line%s).", lines, plural);
+        }
+        break;
+      }
+
+      const bool exceeded_attempts = !shutting_down && attempt >= 4;
+      if (exceeded_attempts) {
+        RCLCPP_ERROR(logger_,
+          "Abandoning batch after %d failed attempts; dropping %zu measurement%s.",
+          attempt + 1, lines, plural);
+        break;
+      }
+
+      if (shutting_down) {
+        RCLCPP_WARN(logger_,
+          "Shutdown flush attempt %d failed; will keep retrying until shutdown is forced.",
+          attempt + 1);
+      }
+
+      const int capped_attempt = std::min(attempt, 6);
+      const auto backoff = std::chrono::milliseconds(std::min(5000, 50 * (1 << capped_attempt)));
+      std::this_thread::sleep_for(backoff);
+      ++attempt;
     }
+
+    if (!success) {
+      if (!shutting_down) {
+        batch.clear();
+      }
+      continue;
+    }
+
+    if (shutting_down && logged_shutdown_flush_started_) {
+      size_t remaining = 0;
+      {
+        std::lock_guard<std::mutex> remaining_lk(m_);
+        remaining = q_.size();
+      }
+      if (remaining == 0) {
+        if (!logged_shutdown_flush_completed_) {
+          logged_shutdown_flush_completed_ = true;
+          RCLCPP_INFO(logger_,
+            "Shutdown flush sent %zu measurement%s. All buffered measurements were uploaded.",
+            lines, plural);
+        } else {
+          RCLCPP_INFO(logger_, "Shutdown flush sent %zu measurement%s.", lines, plural);
+        }
+      } else {
+        const char* remain_plural = remaining == 1 ? "" : "s";
+        RCLCPP_INFO(logger_,
+          "Shutdown flush sent %zu measurement%s. %zu measurement%s remain queued.",
+          lines, plural, remaining, remain_plural);
+      }
+    }
+
     batch.clear();
   }
 }
