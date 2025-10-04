@@ -1,15 +1,15 @@
 /**:
   ros__parameters:
     influx:
-      url: "http://localhost:8086"
-      org: "myorg"
-      bucket: "mybucket"
+      url: "http://localhost:8087"
+      org: ""
+      bucket: ""
       token: "my-super-secret-auth-token"
 
     writer:
       max_batch: 1000
       max_queue: 100000
-      flush_ms: 500
+      flush_ms: 5000
       use_gzip: true
 
     mappings_ids:

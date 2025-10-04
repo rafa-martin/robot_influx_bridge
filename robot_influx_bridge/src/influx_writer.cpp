@@ -250,7 +250,13 @@ InfluxWriter::InfluxWriter(const rclcpp::Logger& logger,
 : token_(token), max_batch_(max_batch), max_queue_(max_queue), flush_(flush), logger_(logger),
   use_gzip_(use_gzip)
 {
-  endpoint_ = url + "/api/v2/write?org=" + org + "&bucket=" + bucket + "&precision=ns";
+  endpoint_ = url + "/api/v2/write?precision=ns";
+  if (!org.empty()) {
+    endpoint_ += "&org=" + org;
+  }
+  if (!bucket.empty()) {
+    endpoint_ += "&bucket=" + bucket;
+  }
   curl_global_init(CURL_GLOBAL_DEFAULT);
   th_ = std::thread(&InfluxWriter::run, this);
 }
@@ -335,7 +341,7 @@ void InfluxWriter::run(){
     while (true) {
       try {
         // debug
-        RCLCPP_INFO(logger_, "Posting %zu measurement%s to InfluxDB...", lines, plural);
+        RCLCPP_DEBUG(logger_, "Posting %zu measurement%s to InfluxDB...", lines, plural);
         if (post(body)) {
           success = true;
         }
