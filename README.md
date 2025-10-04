@@ -80,6 +80,7 @@ schema is generated from `bridge_parameters.yaml`.
       type: "sensor_msgs/msg/Imu"
       measurement: "imu"
       plugin: "robot_influx_common_interfaces/ImuTranslator"
+      min_interval_ms: 5  # Limit processing to ~200 Hz
       tags:
         - "frame_id=base_link"
 ```

@@ -62,3 +62,8 @@ influx_bridge:
       type: string_array
       default_value: []
       description: "List of key=value fields to store as tags instead of fields."
+    min_interval_ms:
+      type: int
+      default_value: 0
+      description: "Minimum time between processed messages from this topic in milliseconds."
+      validation: { gt_eq<>: [0] }

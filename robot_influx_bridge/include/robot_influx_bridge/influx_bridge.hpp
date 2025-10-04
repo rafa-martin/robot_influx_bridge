@@ -4,7 +4,9 @@
 #pragma once
 
 #include <rclcpp/rclcpp.hpp>
+#include <rclcpp/duration.hpp>
 #include <rclcpp/generic_subscription.hpp>
+#include <rclcpp/time.hpp>
 #include <pluginlib/class_loader.hpp>
 
 #include <robot_influx_bridge/translator_base.hpp>
@@ -24,6 +26,14 @@ struct TopicMapping {
   TranslatorContext translator_context;
   std::shared_ptr<rclcpp::GenericSubscription> subscription;
   std::shared_ptr<TranslatorBase> translator;
+
+  struct DownsampleState {
+    rclcpp::Duration min_gap{0, 0};
+    rclcpp::Time last_emit;
+    bool has_last_emit{false};
+  };
+
+  std::shared_ptr<DownsampleState> downsample_state;
 };
 
 /// Node responsible for loading translator plugins and forwarding telemetry batches to

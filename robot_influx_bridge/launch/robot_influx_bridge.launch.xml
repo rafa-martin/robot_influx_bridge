@@ -1,5 +1,5 @@
 <launch>
-  <node pkg="robot_influx_bridge" exec="influx_bridge_node" name="influx_bridge" output="screen">
+  <node pkg="robot_influx_bridge" exec="influx_bridge_node" name="influx_bridge" output="screen" emulate_tty="true">
     <param from="$(find-pkg-share robot_influx_bridge)/config/robot_influx_bridge.yaml"/>
   </node>
 </launch>
