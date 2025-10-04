@@ -12,6 +12,9 @@ find_package(sensor_msgs REQUIRED)
 find_package(nav_msgs REQUIRED)
 find_package(robot_influx_bridge REQUIRED)
 find_package(builtin_interfaces REQUIRED)
+find_package(geometry_msgs REQUIRED)
+find_package(tf2 REQUIRED)
+find_package(tf2_ros REQUIRED)
 
 add_library(robot_influx_common_interfaces_translators SHARED
   src/translators.cpp
@@ -25,7 +28,10 @@ ament_target_dependencies(robot_influx_common_interfaces_translators
   sensor_msgs
   nav_msgs
   robot_influx_bridge
-  builtin_interfaces)
+  builtin_interfaces
+  geometry_msgs
+  tf2
+  tf2_ros)
 
 pluginlib_export_plugin_description_file(robot_influx_bridge translators.xml)
 
@@ -43,6 +49,6 @@ install(FILES translators.xml
 
 ament_export_targets(${PROJECT_NAME}Targets HAS_LIBRARY_TARGET)
 ament_export_include_directories(include)
-ament_export_dependencies(pluginlib rclcpp sensor_msgs nav_msgs robot_influx_bridge builtin_interfaces)
+ament_export_dependencies(pluginlib rclcpp sensor_msgs nav_msgs robot_influx_bridge builtin_interfaces geometry_msgs tf2 tf2_ros)
 
 ament_package()

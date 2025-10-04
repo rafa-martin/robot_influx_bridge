@@ -14,6 +14,7 @@
 
     mappings_ids:
       - imu
+      - tf_map
 
     imu:
       topic: "/imu"
@@ -26,3 +27,21 @@
       qos_durability: volatile
       tag_keys:
         - frame_id=imu_link
+    tf_map:
+      topic: ""
+      translator: "robot_influx_common_interfaces::TfBasicTranslator"
+      measurement: "tf"
+      max_rate: 0.0
+      qos_history: keep_last
+      qos_depth: 10
+      qos_reliability: reliable
+      qos_durability: volatile
+      tag_keys:
+        - frame_id=map
+      custom_config:
+        - source_frame=base_link
+        - target_frame=map
+        - parent_frame=odom
+        - buffer_time_sec=10.0
+        - lookup_timeout_sec=0.1
+        - frequency_hz=50.0

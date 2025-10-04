@@ -57,10 +57,12 @@ influx_bridge:
   __map_mappings_ids:
     topic:
       type: string
+      default_value: ""
       description: "ROS 2 topic name to subscribe. Absolute topic recommended."
       additional_constraints: "Example: /imu"
     translator:
       type: string
+      default_value: ""
       description: "Pluginlib class name of the translator to use."
       additional_constraints: "Example: robot_influx_common_interfaces::ImuTranslator"
     measurement:
@@ -71,6 +73,10 @@ influx_bridge:
       type: string_array
       default_value: []
       description: "List of key=value fields to store as tags instead of fields."
+    custom_config:
+      type: string_array
+      default_value: []
+      description: "List of key=value pairs forwarded verbatim to the translator for custom configuration."
     max_rate:
       type: double
       default_value: 0.0

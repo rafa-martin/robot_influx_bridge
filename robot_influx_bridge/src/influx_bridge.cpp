@@ -55,16 +55,6 @@ void InfluxBridgeNode::addMappingFromParams(const std::string& mapping_id)
   mapping.translator_context.measurement = entry.measurement;
   std::string plugin_class = entry.translator;
 
-  if (entry.max_rate > 0.0) {
-    mapping.downsample_state = std::make_shared<TopicMapping::DownsampleState>();
-    const double min_interval_seconds = 1.0 / entry.max_rate;
-    int64_t min_interval_ns = static_cast<int64_t>(std::llround(min_interval_seconds * 1'000'000'000.0));
-    if (min_interval_ns <= 0) {
-      min_interval_ns = 1;
-    }
-    mapping.downsample_state->min_gap = rclcpp::Duration::from_nanoseconds(min_interval_ns);
-  }
-
   RCLCPP_INFO(this->get_logger(), "Adding mapping %s: %s [%s] -> %s",
     mapping_id.c_str(), mapping.topic_name.c_str(), plugin_class.c_str(), mapping.translator_context.measurement.c_str());
 
@@ -79,6 +69,19 @@ void InfluxBridgeNode::addMappingFromParams(const std::string& mapping_id)
     const std::string key = k.substr(0, pos);
     const std::string value = k.substr(pos + 1);
     mapping.translator_context.static_tags[key] = value;
+  }
+
+  for (const auto & item : entry.custom_config) {
+    const auto pos = item.find('=');
+    if (pos == std::string::npos || pos == 0 || pos == item.size() - 1) {
+      RCLCPP_ERROR(this->get_logger(),
+        "Invalid custom config entry '%s' in mapping %s. Expected format 'key=value'. Skipping.",
+        item.c_str(), mapping_id.c_str());
+      continue;
+    }
+    const std::string key = item.substr(0, pos);
+    const std::string value = item.substr(pos + 1);
+    mapping.translator_context.custom_config[key] = value;
   }
 
   // plugin class by param
@@ -104,79 +107,127 @@ void InfluxBridgeNode::addMappingFromParams(const std::string& mapping_id)
   }
   mapping.translator = translator_loader_->createSharedInstance(plugin_class);
 
-  // subscribe generically
-  size_t depth = static_cast<size_t>(entry.qos_depth);
-  if (depth == 0) {
-    RCLCPP_WARN(this->get_logger(),
-      "Mapping %s configured with QoS depth 0. Falling back to depth 1.",
+  mapping.translator->configure(*this, mapping.translator_context);
+
+  if (mapping.translator->requires_subscription() && mapping.topic_name.empty()) {
+    RCLCPP_ERROR(this->get_logger(),
+      "Mapping %s requires a topic, but none was provided. Set the 'topic' parameter.",
       mapping_id.c_str());
-    depth = 1U;
-  }
-  rclcpp::QoS qos = rclcpp::QoS(rclcpp::KeepLast(depth));
-  if (entry.qos_history == "keep_all") {
-    qos = rclcpp::QoS(rclcpp::KeepAll());
-  } else if (entry.qos_history != "keep_last") {
-    RCLCPP_WARN(this->get_logger(),
-      "Mapping %s configured with unsupported QoS history '%s'. Falling back to keep_last.",
-      mapping_id.c_str(), entry.qos_history.c_str());
-  }
-  if (entry.qos_reliability == "best_effort") {
-    qos.best_effort();
-  } else if (entry.qos_reliability == "reliable") {
-    qos.reliable();
-  } else {
-    RCLCPP_WARN(this->get_logger(),
-      "Mapping %s configured with unsupported QoS reliability '%s'. Falling back to reliable.",
-      mapping_id.c_str(), entry.qos_reliability.c_str());
-    qos.reliable();
-  }
-  if (entry.qos_durability == "transient_local") {
-    qos.transient_local();
-  } else if (entry.qos_durability == "volatile") {
-    qos.durability_volatile();
-  } else {
-    RCLCPP_WARN(this->get_logger(),
-      "Mapping %s configured with unsupported QoS durability '%s'. Falling back to volatile.",
-      mapping_id.c_str(), entry.qos_durability.c_str());
-    qos.durability_volatile();
-  }
-  if (mapping.downsample_state && mapping.downsample_state->min_gap.nanoseconds() > 0) {
-    const double effective_hz = entry.max_rate;
-    const double min_interval_ms = static_cast<double>(mapping.downsample_state->min_gap.nanoseconds()) / 1'000'000.0;
-    RCLCPP_WARN(this->get_logger(),
-      "Downsampling topic %s to at most %.3f Hz (minimum interval %.3f ms)",
-      mapping.topic_name.c_str(),
-      effective_hz,
-      min_interval_ms);
+    return;
   }
 
-  auto callback = [this,
-      context=mapping.translator_context,
-      translator=mapping.translator,
-      state=mapping.downsample_state](const std::shared_ptr<rclcpp::SerializedMessage> message){
-    if (state && state->min_gap.nanoseconds() > 0) {
-      const auto now = this->get_clock()->now();
-      if (state->has_last_emit) {
-        const auto delta = now - state->last_emit;
-        if (delta < state->min_gap) {
-          return;
+  if (mapping.translator->requires_subscription() && entry.max_rate > 0.0) {
+    mapping.downsample_state = std::make_shared<TopicMapping::DownsampleState>();
+    const double min_interval_seconds = 1.0 / entry.max_rate;
+    int64_t min_interval_ns = static_cast<int64_t>(std::llround(min_interval_seconds * 1'000'000'000.0));
+    if (min_interval_ns <= 0) {
+      min_interval_ns = 1;
+    }
+    mapping.downsample_state->min_gap = rclcpp::Duration::from_nanoseconds(min_interval_ns);
+  }
+
+  if (auto timer_period = mapping.translator->get_timer_period(mapping.translator_context)) {
+    if (timer_period->count() <= 0) {
+      RCLCPP_WARN(this->get_logger(),
+        "Mapping %s requested non-positive timer period. Ignoring timer.",
+        mapping_id.c_str());
+    } else {
+      mapping.timer = this->create_wall_timer(
+        *timer_period,
+        [this,
+         translator=mapping.translator,
+         context=mapping.translator_context]() {
+          const auto now = this->get_clock()->now();
+          for (const auto & line : translator->on_timer(context, now)) {
+            if (!writer_->enqueue(line)) {
+              RCLCPP_WARN_THROTTLE(
+                this->get_logger(), *get_clock(), 5000, "Queue full. Dropping line.");
+            }
+          }
+        });
+      RCLCPP_INFO(this->get_logger(),
+        "Mapping %s configured with periodic translator callback every %.3f ms.",
+        mapping_id.c_str(),
+        static_cast<double>(timer_period->count()) / 1'000'000.0);
+    }
+  }
+
+  if (mapping.translator->requires_subscription()) {
+    // subscribe generically
+    size_t depth = static_cast<size_t>(entry.qos_depth);
+    if (depth == 0) {
+      RCLCPP_WARN(this->get_logger(),
+        "Mapping %s configured with QoS depth 0. Falling back to depth 1.",
+        mapping_id.c_str());
+      depth = 1U;
+    }
+    rclcpp::QoS qos = rclcpp::QoS(rclcpp::KeepLast(depth));
+    if (entry.qos_history == "keep_all") {
+      qos = rclcpp::QoS(rclcpp::KeepAll());
+    } else if (entry.qos_history != "keep_last") {
+      RCLCPP_WARN(this->get_logger(),
+        "Mapping %s configured with unsupported QoS history '%s'. Falling back to keep_last.",
+        mapping_id.c_str(), entry.qos_history.c_str());
+    }
+    if (entry.qos_reliability == "best_effort") {
+      qos.best_effort();
+    } else if (entry.qos_reliability == "reliable") {
+      qos.reliable();
+    } else {
+      RCLCPP_WARN(this->get_logger(),
+        "Mapping %s configured with unsupported QoS reliability '%s'. Falling back to reliable.",
+        mapping_id.c_str(), entry.qos_reliability.c_str());
+      qos.reliable();
+    }
+    if (entry.qos_durability == "transient_local") {
+      qos.transient_local();
+    } else if (entry.qos_durability == "volatile") {
+      qos.durability_volatile();
+    } else {
+      RCLCPP_WARN(this->get_logger(),
+        "Mapping %s configured with unsupported QoS durability '%s'. Falling back to volatile.",
+        mapping_id.c_str(), entry.qos_durability.c_str());
+      qos.durability_volatile();
+    }
+    if (mapping.downsample_state && mapping.downsample_state->min_gap.nanoseconds() > 0) {
+      const double effective_hz = entry.max_rate;
+      const double min_interval_ms = static_cast<double>(mapping.downsample_state->min_gap.nanoseconds()) / 1'000'000.0;
+      RCLCPP_WARN(this->get_logger(),
+        "Downsampling topic %s to at most %.3f Hz (minimum interval %.3f ms)",
+        mapping.topic_name.c_str(),
+        effective_hz,
+        min_interval_ms);
+    }
+
+    auto callback = [this,
+        context=mapping.translator_context,
+        translator=mapping.translator,
+        state=mapping.downsample_state](const std::shared_ptr<rclcpp::SerializedMessage> message){
+      if (state && state->min_gap.nanoseconds() > 0) {
+        const auto now = this->get_clock()->now();
+        if (state->has_last_emit) {
+          const auto delta = now - state->last_emit;
+          if (delta < state->min_gap) {
+            return;
+          }
+        }
+        state->last_emit = now;
+        state->has_last_emit = true;
+      }
+      for(const auto & line : translator->to_line_protocol(*message, context)){
+        if(!writer_->enqueue(line)){
+          RCLCPP_WARN_THROTTLE(this->get_logger(), *get_clock(), 5000, "Queue full. Dropping line.");
         }
       }
-      state->last_emit = now;
-      state->has_last_emit = true;
-    }
-    for(const auto & line : translator->to_line_protocol(*message, context)){
-      if(!writer_->enqueue(line)){
-        RCLCPP_WARN_THROTTLE(this->get_logger(), *get_clock(), 5000, "Queue full. Dropping line.");
-      }
-    }
-  };
-  mapping.subscription = create_generic_subscription(mapping.topic_name, mapping.translator->type_name(), qos, callback);
+    };
+    mapping.subscription = create_generic_subscription(mapping.topic_name, mapping.translator->type_name(), qos, callback);
+
+    RCLCPP_INFO(this->get_logger(), "Subscribed %s [%s]",
+      mapping.topic_name.c_str(),
+      mapping.translator->type_name().c_str());
+  }
 
   topic_mappings_.push_back(std::move(mapping));
-  RCLCPP_INFO(this->get_logger(), "Subscribed %s [%s]",
-    topic_mappings_.back().topic_name.c_str(),
-    topic_mappings_.back().translator->type_name().c_str());
 }
 
 }  // namespace robot_influx_bridge

@@ -7,6 +7,7 @@
 #include <rclcpp/duration.hpp>
 #include <rclcpp/generic_subscription.hpp>
 #include <rclcpp/time.hpp>
+#include <rclcpp/timer.hpp>
 #include <pluginlib/class_loader.hpp>
 
 #include <robot_influx_bridge/translator_base.hpp>
@@ -25,6 +26,7 @@ struct TopicMapping {
   std::string topic_name;
   TranslatorContext translator_context;
   std::shared_ptr<rclcpp::GenericSubscription> subscription;
+  rclcpp::TimerBase::SharedPtr timer;
   std::shared_ptr<TranslatorBase> translator;
 
   struct DownsampleState {

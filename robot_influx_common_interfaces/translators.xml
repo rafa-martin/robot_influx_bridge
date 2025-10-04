@@ -11,4 +11,8 @@
          base_class_type="robot_influx_bridge::TranslatorBase">
     <description>Translates sensor_msgs/BatteryState messages to InfluxDB points</description>
   </class>
+  <class type="robot_influx_common_interfaces::TfBasicTranslator"
+         base_class_type="robot_influx_bridge::TranslatorBase">
+    <description>Periodically exports TF transforms using tf2 to InfluxDB</description>
+  </class>
 </library>
