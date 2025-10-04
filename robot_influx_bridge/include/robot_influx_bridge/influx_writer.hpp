@@ -5,6 +5,7 @@
 
 #include <atomic>
 #include <chrono>
+#include <cstdint>
 #include <condition_variable>
 #include <memory>
 #include <mutex>
@@ -44,6 +45,18 @@ public:
   /// when no error has been observed.
   std::string last_error() const;
 
+  /// Current number of queued line protocol messages waiting to be batched.
+  size_t queue_depth() const noexcept;
+
+  /// Maximum configured queue capacity.
+  size_t max_queue_size() const noexcept;
+
+  /// Total number of persisted batches waiting on disk.
+  size_t pending_batch_count() const noexcept;
+
+  /// Bytes currently consumed by the persistence directory.
+  uintmax_t persistence_bytes_used() const noexcept;
+
 private:
   void run();
   struct SendAttemptResult {
@@ -56,6 +69,7 @@ private:
   std::chrono::milliseconds backoff_duration(size_t attempt) const;
   bool post(const std::string& body);
   void set_last_error(std::string message) const;
+  void update_persistence_metrics();
 
   std::string endpoint_, token_;
   size_t max_batch_, max_queue_;
@@ -77,6 +91,9 @@ private:
   std::optional<typename PersistentBatchStore::PendingBatch> pending_disk_batch_;
   size_t pending_disk_attempts_{0};
   bool logged_connection_loss_{false};
+  std::atomic<size_t> queue_depth_{0};
+  std::atomic<size_t> pending_persisted_batches_{0};
+  std::atomic<uintmax_t> persistence_bytes_used_{0};
 };
 
 }  // namespace robot_influx_bridge

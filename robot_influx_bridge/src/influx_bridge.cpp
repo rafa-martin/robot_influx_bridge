@@ -2,12 +2,18 @@
 
 #include <cstdint>
 #include <cmath>
+#include <iomanip>
+#include <sstream>
+#include <vector>
+
+using namespace std::chrono_literals;
 
 namespace robot_influx_bridge {
 
 
 InfluxBridgeNode::InfluxBridgeNode(rclcpp::NodeOptions const& options)
-: Node("influx_bridge", options)
+: Node("influx_bridge", options),
+  diagnostics_updater_(this)
 {
   param_listener_ = std::make_shared<influx_bridge::ParamListener>(get_node_parameters_interface());
   param_listener_->setUserCallback(
@@ -32,6 +38,13 @@ InfluxBridgeNode::InfluxBridgeNode(rclcpp::NodeOptions const& options)
     params_.writer.use_gzip,
     params_.writer.persistence_path,
     static_cast<size_t>(params_.writer.persistence_max_megabytes));
+
+  diagnostics_updater_.setHardwareID(this->get_fully_qualified_name());
+  diagnostics_updater_.add("Influx Writer", this, &InfluxBridgeNode::publishDiagnostics);
+  diagnostics_timer_ = this->create_wall_timer(1s, [this]() {
+    diagnostics_updater_.force_update();
+  });
+  diagnostics_updater_.force_update();
 
   // translator loader
   translator_loader_ = std::make_unique<pluginlib::ClassLoader<TranslatorBase>>(
@@ -228,6 +241,72 @@ void InfluxBridgeNode::addMappingFromParams(const std::string& mapping_id)
   }
 
   topic_mappings_.push_back(std::move(mapping));
+}
+
+void InfluxBridgeNode::publishDiagnostics(diagnostic_updater::DiagnosticStatusWrapper& status)
+{
+  status.summary(diagnostic_msgs::msg::DiagnosticStatus::OK, "OK");
+
+  if (!writer_) {
+    status.summary(diagnostic_msgs::msg::DiagnosticStatus::ERROR, "Writer unavailable");
+    return;
+  }
+
+  const size_t depth = writer_->queue_depth();
+  const size_t max_queue = writer_->max_queue_size();
+  const uintmax_t persisted_bytes = writer_->persistence_bytes_used();
+  const size_t persisted_batches = writer_->pending_batch_count();
+  const std::string last_error = writer_->last_error();
+  const double utilization = max_queue > 0 ? static_cast<double>(depth) / static_cast<double>(max_queue) : 0.0;
+
+  uint8_t level = diagnostic_msgs::msg::DiagnosticStatus::OK;
+  std::vector<std::string> issues;
+  auto flag_issue = [&](uint8_t issue_level, const std::string& message) {
+    if (issue_level > level) {
+      level = issue_level;
+    }
+    if (!message.empty()) {
+      issues.push_back(message);
+    }
+  };
+
+  if (utilization >= 0.95) {
+    flag_issue(diagnostic_msgs::msg::DiagnosticStatus::ERROR, "Queue nearly full");
+  } else if (utilization >= 0.75) {
+    flag_issue(diagnostic_msgs::msg::DiagnosticStatus::WARN, "Queue utilization high");
+  }
+
+  if (persisted_batches > 0) {
+    flag_issue(diagnostic_msgs::msg::DiagnosticStatus::WARN, "Using disk persistence");
+  }
+
+  if (!last_error.empty()) {
+    flag_issue(diagnostic_msgs::msg::DiagnosticStatus::WARN, std::string("Last error: ") + last_error);
+  }
+
+  std::string summary = "OK";
+  if (!issues.empty()) {
+    std::ostringstream oss;
+    for (size_t i = 0; i < issues.size(); ++i) {
+      if (i > 0) {
+        oss << "; ";
+      }
+      oss << issues[i];
+    }
+    summary = oss.str();
+  }
+
+  status.summary(level, summary);
+
+  std::ostringstream util_stream;
+  util_stream << std::fixed << std::setprecision(2) << (utilization * 100.0);
+
+  status.add("queue_depth", std::to_string(depth));
+  status.add("max_queue", std::to_string(max_queue));
+  status.add("queue_utilization", util_stream.str() + "%");
+  status.add("persisted_batches", std::to_string(persisted_batches));
+  status.add("persistence_bytes_used", std::to_string(persisted_bytes));
+  status.add("last_error", last_error.empty() ? std::string("(none)") : last_error);
 }
 
 }  // namespace robot_influx_bridge

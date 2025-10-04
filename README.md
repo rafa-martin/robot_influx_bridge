@@ -116,6 +116,11 @@ Common utilities for constructing line protocol strings live in
 * `InfluxWriter` maintains a background thread that batches measurements. The
   `last_error()` accessor surfaces the last network or HTTP error reported by the
   uploader.
+* The bridge publishes periodic diagnostics via `diagnostic_updater`, which
+  emits `diagnostic_msgs/msg/DiagnosticArray` messages on `/diagnostics`. The
+  status includes keys such as `queue_depth`, `queue_utilization`,
+  `persisted_batches`, `persistence_bytes_used`, and `last_error`, making it easy
+  to monitor the health of the uploader.
 * The bridge logs the list of available plugins on startup. If a mapping fails to
   resolve a translator, check that the package exporting the plugin is built and that
   its XML file is installed.

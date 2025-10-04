@@ -14,6 +14,8 @@ find_package(generate_parameter_library REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(rclcpp_components REQUIRED)
 find_package(pluginlib REQUIRED)
+find_package(diagnostic_msgs REQUIRED)
+find_package(diagnostic_updater REQUIRED)
 find_package(CURL REQUIRED)
 find_package(ZLIB REQUIRED)
 
@@ -48,6 +50,7 @@ target_link_libraries(influx_bridge
     rclcpp::rclcpp
     pluginlib::pluginlib
     rclcpp_components::component)
+ament_target_dependencies(influx_bridge PUBLIC diagnostic_msgs diagnostic_updater)
 rclcpp_components_register_node(influx_bridge
   PLUGIN "robot_influx_bridge::InfluxBridgeNode"
   EXECUTABLE influx_bridge_node
@@ -72,6 +75,6 @@ install(DIRECTORY include/
 
 ament_export_targets(${PROJECT_NAME}Targets HAS_LIBRARY_TARGET)
 ament_export_include_directories(include)
-ament_export_dependencies(pluginlib rclcpp rclcpp_components CURL ZLIB)
+ament_export_dependencies(pluginlib rclcpp rclcpp_components CURL ZLIB diagnostic_msgs diagnostic_updater)
 
 ament_package()

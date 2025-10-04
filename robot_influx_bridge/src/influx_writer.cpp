@@ -266,6 +266,8 @@ InfluxWriter::InfluxWriter(const rclcpp::Logger& logger,
     persistent_store_->initialize();
   }
 
+  update_persistence_metrics();
+
   curl_global_init(CURL_GLOBAL_DEFAULT);
   th_ = std::thread(&InfluxWriter::run, this);
 }
@@ -273,6 +275,9 @@ InfluxWriter::~InfluxWriter(){
   stop_ = true; cv_.notify_all();
   if (th_.joinable()) th_.join();
   curl_global_cleanup();
+  queue_depth_.store(0, std::memory_order_relaxed);
+  pending_persisted_batches_.store(0, std::memory_order_relaxed);
+  persistence_bytes_used_.store(0, std::memory_order_relaxed);
 }
 
 bool InfluxWriter::enqueue(std::string line){
@@ -285,6 +290,7 @@ bool InfluxWriter::enqueue(std::string line){
     return false;
   }
   q_.push(std::move(line));
+  queue_depth_.store(q_.size(), std::memory_order_relaxed);
   cv_.notify_one();
   lk.unlock();
   return true;
@@ -293,6 +299,22 @@ bool InfluxWriter::enqueue(std::string line){
 std::string InfluxWriter::last_error() const {
   std::lock_guard<std::mutex> lk(error_mutex_);
   return last_error_;
+}
+
+size_t InfluxWriter::queue_depth() const noexcept {
+  return queue_depth_.load(std::memory_order_relaxed);
+}
+
+size_t InfluxWriter::max_queue_size() const noexcept {
+  return max_queue_;
+}
+
+size_t InfluxWriter::pending_batch_count() const noexcept {
+  return pending_persisted_batches_.load(std::memory_order_relaxed);
+}
+
+uintmax_t InfluxWriter::persistence_bytes_used() const noexcept {
+  return persistence_bytes_used_.load(std::memory_order_relaxed);
 }
 
 void InfluxWriter::run(){
@@ -323,6 +345,7 @@ void InfluxWriter::run(){
         if (pending_disk_batch_->lines.empty()) {
           persistent_store_->mark_processed(*pending_disk_batch_);
           pending_disk_batch_.reset();
+          update_persistence_metrics();
           continue;
         }
 
@@ -336,6 +359,7 @@ void InfluxWriter::run(){
           persistent_store_->mark_processed(*pending_disk_batch_);
           pending_disk_batch_.reset();
           pending_disk_attempts_ = 0;
+          update_persistence_metrics();
           log_success(line_count);
           continue;
         }
@@ -347,6 +371,7 @@ void InfluxWriter::run(){
           persistent_store_->mark_processed(*pending_disk_batch_);
           pending_disk_batch_.reset();
           pending_disk_attempts_ = 0;
+          update_persistence_metrics();
           continue;
         }
 
@@ -383,6 +408,7 @@ void InfluxWriter::run(){
         batch.push_back(std::move(q_.front()));
         q_.pop();
       }
+      queue_depth_.store(q_.size(), std::memory_order_relaxed);
     }
 
     bool shutting_down = stop_.load(std::memory_order_relaxed);
@@ -430,6 +456,7 @@ void InfluxWriter::run(){
           std::lock_guard<std::mutex> remaining_lk(m_);
           remaining = q_.size();
         }
+        queue_depth_.store(remaining, std::memory_order_relaxed);
         if (remaining == 0) {
           if (!logged_shutdown_flush_completed_) {
             logged_shutdown_flush_completed_ = true;
@@ -469,6 +496,7 @@ void InfluxWriter::run(){
 
     bool persisted = persistent_store_ && persistent_store_->store(batch);
     if (persisted) {
+      update_persistence_metrics();
       const double used = static_cast<double>(persistent_store_->current_bytes()) / (1024.0 * 1024.0);
       const double limit = static_cast<double>(persistent_store_->max_bytes()) / (1024.0 * 1024.0);
       const size_t pending_batches = persistent_store_->pending_batches();
@@ -487,6 +515,7 @@ void InfluxWriter::run(){
           pending_batches, plural_batches);
       }
     } else {
+      update_persistence_metrics();
       RCLCPP_ERROR(logger_,
         "Lost connection to InfluxDB (%s). Persistence unavailable; dropping %zu measurement%s.",
         result.reason.c_str(), lines, plural);
@@ -631,6 +660,17 @@ bool InfluxWriter::post(const std::string& body){
 void InfluxWriter::set_last_error(std::string message) const {
   std::lock_guard<std::mutex> lk(error_mutex_);
   last_error_ = std::move(message);
+}
+
+void InfluxWriter::update_persistence_metrics() {
+  size_t pending = 0;
+  uintmax_t bytes = 0;
+  if (persistent_store_) {
+    pending = persistent_store_->pending_batches();
+    bytes = persistent_store_->current_bytes();
+  }
+  pending_persisted_batches_.store(pending, std::memory_order_relaxed);
+  persistence_bytes_used_.store(bytes, std::memory_order_relaxed);
 }
 
 } // namespace robot_influx_bridge

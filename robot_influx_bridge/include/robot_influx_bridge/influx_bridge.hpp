@@ -8,6 +8,8 @@
 #include <rclcpp/generic_subscription.hpp>
 #include <rclcpp/time.hpp>
 #include <rclcpp/timer.hpp>
+#include <diagnostic_msgs/msg/diagnostic_status.hpp>
+#include <diagnostic_updater/diagnostic_updater.hpp>
 #include <pluginlib/class_loader.hpp>
 
 #include <robot_influx_bridge/translator_base.hpp>
@@ -51,7 +53,11 @@ private:
   std::unique_ptr<robot_influx_bridge::InfluxWriter> writer_;
   std::vector<TopicMapping> topic_mappings_;
 
+  rclcpp::TimerBase::SharedPtr diagnostics_timer_;
+  diagnostic_updater::Updater diagnostics_updater_;
+
   void addMappingFromParams(const std::string& mapping_id);
+  void publishDiagnostics(diagnostic_updater::DiagnosticStatusWrapper& status);
 };
 
 }  // namespace robot_influx_bridge
