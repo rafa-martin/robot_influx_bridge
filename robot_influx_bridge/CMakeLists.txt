@@ -1,6 +1,9 @@
 cmake_minimum_required(VERSION 3.5)
 project(robot_influx_bridge)
 
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
 if(CMAKE_CXX_COMPILER_ID MATCHES "(GNU|Clang)")
   add_compile_options(-Wall -Wextra -Wpedantic -Wshadow -Wconversion -Wsign-conversion -Wold-style-cast)
 endif()
@@ -17,6 +20,7 @@ find_package(ZLIB REQUIRED)
 # CORE
 add_library(influx_bridge_lib
   src/influx_writer.cpp
+  src/persistent_batch_store.cpp
 )
 target_include_directories(influx_bridge_lib PUBLIC
   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>

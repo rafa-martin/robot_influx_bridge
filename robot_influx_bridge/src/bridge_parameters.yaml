@@ -39,6 +39,15 @@ influx_bridge:
       type: bool
       default_value: false
       description: "Compress HTTP payloads with gzip."
+    persistence_path:
+      type: string
+      default_value: "/tmp/robot_influx_bridge"
+      description: "Directory where batches are persisted while InfluxDB is unavailable."
+    persistence_max_megabytes:
+      type: int
+      default_value: 128
+      description: "Maximum size in megabytes for the on-disk persistence queue. Older batches are dropped once the limit is reached."
+      validation: { gt_eq<>: [0] }
 
   mappings_ids:
     type: string_array

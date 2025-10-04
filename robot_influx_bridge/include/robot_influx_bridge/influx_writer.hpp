@@ -6,13 +6,17 @@
 #include <atomic>
 #include <chrono>
 #include <condition_variable>
+#include <memory>
 #include <mutex>
+#include <optional>
 #include <queue>
 #include <string>
 #include <thread>
 #include <vector>
 
 #include <rclcpp/logger.hpp>
+
+#include <robot_influx_bridge/persistent_batch_store.hpp>
 
 namespace robot_influx_bridge {
 
@@ -28,7 +32,9 @@ public:
                const std::string& bucket, const std::string& token,
                size_t max_batch = 1000, size_t max_queue = 100000,
                std::chrono::milliseconds flush = std::chrono::milliseconds(500),
-               bool use_gzip = false);
+               bool use_gzip = false,
+               const std::string& persistence_path = std::string(),
+               size_t persistence_max_megabytes = 64);
   ~InfluxWriter();
 
   /// Queue a line protocol string for upload. Returns `false` if the queue is full.
@@ -40,6 +46,14 @@ public:
 
 private:
   void run();
+  struct SendAttemptResult {
+    bool success{false};
+    bool retryable{false};
+    std::string reason;
+  };
+  SendAttemptResult send_batch(const std::vector<std::string>& lines);
+  std::string build_body(const std::vector<std::string>& lines) const;
+  std::chrono::milliseconds backoff_duration(size_t attempt) const;
   bool post(const std::string& body);
   void set_last_error(std::string message) const;
 
@@ -59,6 +73,10 @@ private:
   bool use_gzip_;
   bool logged_shutdown_flush_started_{false};
   bool logged_shutdown_flush_completed_{false};
+  std::unique_ptr<PersistentBatchStore> persistent_store_;
+  std::optional<typename PersistentBatchStore::PendingBatch> pending_disk_batch_;
+  size_t pending_disk_attempts_{0};
+  bool logged_connection_loss_{false};
 };
 
 }  // namespace robot_influx_bridge
