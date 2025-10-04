@@ -80,7 +80,11 @@ schema is generated from `bridge_parameters.yaml`.
       type: "sensor_msgs/msg/Imu"
       measurement: "imu"
       plugin: "robot_influx_common_interfaces/ImuTranslator"
-      min_interval_ms: 5  # Limit processing to ~200 Hz
+      max_rate: 200.0  # Limit processing to 200 Hz
+      qos_history: keep_last
+      qos_depth: 10
+      qos_reliability: reliable
+      qos_durability: volatile
       tags:
         - "frame_id=base_link"
 ```
@@ -91,6 +95,9 @@ schema is generated from `bridge_parameters.yaml`.
   produced by the translator.
 * Enable `writer.use_gzip` to compress HTTP payloads before sending them to InfluxDB.
   This is recommended when the bridge publishes large batches.
+* Each mapping can optionally throttle the processing rate via `max_rate` and override
+  the ROS 2 subscription QoS (`qos_history`, `qos_depth`, `qos_reliability`,
+  `qos_durability`).
 
 ## Creating Custom Translators
 

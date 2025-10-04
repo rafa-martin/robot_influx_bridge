@@ -22,6 +22,7 @@ add_library(influx_bridge_lib
   src/influx_writer.cpp
   src/persistent_batch_store.cpp
 )
+set_target_properties(influx_bridge_lib PROPERTIES POSITION_INDEPENDENT_CODE ON)
 target_include_directories(influx_bridge_lib PUBLIC
   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>
   $<INSTALL_INTERFACE:include/${PROJECT_NAME}>)

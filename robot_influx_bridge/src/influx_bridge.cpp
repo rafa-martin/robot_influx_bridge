@@ -1,6 +1,7 @@
 #include <robot_influx_bridge/influx_bridge.hpp>
 
 #include <cstdint>
+#include <cmath>
 
 namespace robot_influx_bridge {
 
@@ -54,9 +55,13 @@ void InfluxBridgeNode::addMappingFromParams(const std::string& mapping_id)
   mapping.translator_context.measurement = entry.measurement;
   std::string plugin_class = entry.translator;
 
-  if (entry.min_interval_ms > 0) {
+  if (entry.max_rate > 0.0) {
     mapping.downsample_state = std::make_shared<TopicMapping::DownsampleState>();
-    const int64_t min_interval_ns = static_cast<int64_t>(entry.min_interval_ms) * 1000000LL;
+    const double min_interval_seconds = 1.0 / entry.max_rate;
+    int64_t min_interval_ns = static_cast<int64_t>(std::llround(min_interval_seconds * 1'000'000'000.0));
+    if (min_interval_ns <= 0) {
+      min_interval_ns = 1;
+    }
     mapping.downsample_state->min_gap = rclcpp::Duration::from_nanoseconds(min_interval_ns);
   }
 
@@ -100,14 +105,49 @@ void InfluxBridgeNode::addMappingFromParams(const std::string& mapping_id)
   mapping.translator = translator_loader_->createSharedInstance(plugin_class);
 
   // subscribe generically
-  rclcpp::QoS qos( rclcpp::KeepLast(10) );
-  if (mapping.downsample_state && mapping.downsample_state->min_gap.nanoseconds() > 0) {
-    const double effective_hz = 1000.0 / static_cast<double>(entry.min_interval_ms);
+  size_t depth = static_cast<size_t>(entry.qos_depth);
+  if (depth == 0) {
     RCLCPP_WARN(this->get_logger(),
-      "Downsampling topic %s to at most %.3f Hz (minimum interval %ld ms)",
+      "Mapping %s configured with QoS depth 0. Falling back to depth 1.",
+      mapping_id.c_str());
+    depth = 1U;
+  }
+  rclcpp::QoS qos = rclcpp::QoS(rclcpp::KeepLast(depth));
+  if (entry.qos_history == "keep_all") {
+    qos = rclcpp::QoS(rclcpp::KeepAll());
+  } else if (entry.qos_history != "keep_last") {
+    RCLCPP_WARN(this->get_logger(),
+      "Mapping %s configured with unsupported QoS history '%s'. Falling back to keep_last.",
+      mapping_id.c_str(), entry.qos_history.c_str());
+  }
+  if (entry.qos_reliability == "best_effort") {
+    qos.best_effort();
+  } else if (entry.qos_reliability == "reliable") {
+    qos.reliable();
+  } else {
+    RCLCPP_WARN(this->get_logger(),
+      "Mapping %s configured with unsupported QoS reliability '%s'. Falling back to reliable.",
+      mapping_id.c_str(), entry.qos_reliability.c_str());
+    qos.reliable();
+  }
+  if (entry.qos_durability == "transient_local") {
+    qos.transient_local();
+  } else if (entry.qos_durability == "volatile") {
+    qos.durability_volatile();
+  } else {
+    RCLCPP_WARN(this->get_logger(),
+      "Mapping %s configured with unsupported QoS durability '%s'. Falling back to volatile.",
+      mapping_id.c_str(), entry.qos_durability.c_str());
+    qos.durability_volatile();
+  }
+  if (mapping.downsample_state && mapping.downsample_state->min_gap.nanoseconds() > 0) {
+    const double effective_hz = entry.max_rate;
+    const double min_interval_ms = static_cast<double>(mapping.downsample_state->min_gap.nanoseconds()) / 1'000'000.0;
+    RCLCPP_WARN(this->get_logger(),
+      "Downsampling topic %s to at most %.3f Hz (minimum interval %.3f ms)",
       mapping.topic_name.c_str(),
       effective_hz,
-      static_cast<long>(entry.min_interval_ms));
+      min_interval_ms);
   }
 
   auto callback = [this,

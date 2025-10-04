@@ -19,6 +19,10 @@
       topic: "/imu"
       translator: "robot_influx_common_interfaces::ImuTranslator"
       measurement: "imu"
-      min_interval_ms: 5
+      max_rate: 200.0
+      qos_history: keep_last
+      qos_depth: 10
+      qos_reliability: best_effort
+      qos_durability: volatile
       tag_keys:
         - frame_id=imu_link

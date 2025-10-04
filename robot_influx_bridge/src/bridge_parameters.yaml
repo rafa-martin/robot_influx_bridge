@@ -71,8 +71,25 @@ influx_bridge:
       type: string_array
       default_value: []
       description: "List of key=value fields to store as tags instead of fields."
-    min_interval_ms:
+    max_rate:
+      type: double
+      default_value: 0.0
+      description: "Maximum frequency (Hz) at which messages from this topic are processed."
+      validation: { gt_eq<>: [0.0] }
+    qos_history:
+      type: string
+      default_value: "keep_last"
+      description: "QoS history policy (keep_last or keep_all)."
+    qos_depth:
       type: int
-      default_value: 0
-      description: "Minimum time between processed messages from this topic in milliseconds."
+      default_value: 10
+      description: "Queue depth to use when history is keep_last."
       validation: { gt_eq<>: [0] }
+    qos_reliability:
+      type: string
+      default_value: "reliable"
+      description: "QoS reliability policy (reliable or best_effort)."
+    qos_durability:
+      type: string
+      default_value: "volatile"
+      description: "QoS durability policy (volatile or transient_local)."
