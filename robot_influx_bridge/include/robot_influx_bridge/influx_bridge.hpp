@@ -2,20 +2,23 @@
 // Copyright (c) 2025 Rafael Martin
 
 #pragma once
+
 #include <rclcpp/rclcpp.hpp>
 #include <rclcpp/generic_subscription.hpp>
 #include <pluginlib/class_loader.hpp>
+
 #include <robot_influx_bridge/translator_base.hpp>
 #include <robot_influx_bridge/influx_writer.hpp>
+#include <robot_influx_bridge/bridge_parameters.hpp>
 
 #include <memory>
 #include <string>
 #include <vector>
 
-#include <robot_influx_bridge/bridge_parameters.hpp>
-
 namespace robot_influx_bridge {
 
+/// Stores the objects required to service a single mapping between a ROS topic and
+/// an InfluxDB measurement.
 struct TopicMapping {
   std::string topic_name;
   TranslatorContext translator_context;
@@ -23,8 +26,10 @@ struct TopicMapping {
   std::shared_ptr<TranslatorBase> translator;
 };
 
+/// Node responsible for loading translator plugins and forwarding telemetry batches to
+/// InfluxDB.
 struct InfluxBridgeNode : public rclcpp::Node {
-  InfluxBridgeNode(const rclcpp::NodeOptions& options = rclcpp::NodeOptions());
+  explicit InfluxBridgeNode(const rclcpp::NodeOptions& options = rclcpp::NodeOptions());
 
 private:
   std::shared_ptr<influx_bridge::ParamListener> param_listener_;

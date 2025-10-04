@@ -71,6 +71,10 @@ std::string trim(std::string s) {
   return s;
 }
 
+const char* plural_suffix(size_t count, const char* suffix = "s") {
+  return count == 1 ? "" : suffix;
+}
+
 std::string compress_gzip_string(const std::string& input) {
   if (input.empty()) {
     // zlib still produces a valid gzip stream for empty input, but avoid work
@@ -197,6 +201,43 @@ std::string describe_error(const robot_influx_bridge::InfluxError& error) {
 
   return "Unknown error";
 }
+
+std::string parse_error_payload(
+    long http_status, const std::string& body, const std::string& content_type) {
+  if (body.empty()) {
+    return {};
+  }
+
+  std::string lowered = content_type;
+  std::transform(lowered.begin(), lowered.end(), lowered.begin(),
+    [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+
+  std::string parsed;
+  if (lowered.find("application/json") != std::string::npos) {
+    const auto code = extract_json_string(body, "code");
+    const auto message = extract_json_string(body, "message");
+    if (!message.empty()) {
+      parsed = message;
+    }
+    if (!code.empty()) {
+      parsed = code + (parsed.empty() ? std::string() : ": " + parsed);
+    }
+  }
+
+  if (parsed.empty()) {
+    parsed = trim(body);
+  }
+
+  if (parsed.empty()) {
+    if (http_status > 0) {
+      parsed = "HTTP " + std::to_string(http_status);
+    } else {
+      parsed = "HTTP error";
+    }
+  }
+
+  return parsed;
+}
 }  // namespace
 
 using namespace std::chrono_literals;
@@ -271,10 +312,11 @@ void InfluxWriter::run(){
 
     lk.unlock();
 
+    const size_t lines = batch.size();
+
     if (shutting_down && !logged_shutdown_flush_started_) {
       logged_shutdown_flush_started_ = true;
-      const size_t lines = batch.size();
-      const char* plural = lines == 1 ? "" : "s";
+      const char* plural = plural_suffix(lines);
       RCLCPP_INFO(logger_,
         "Shutdown requested. Flushing %zu queued measurement%s before exit...",
         lines, plural);
@@ -287,8 +329,7 @@ void InfluxWriter::run(){
       body.push_back('\n');
     }
 
-    const size_t lines = batch.size();
-    const char* plural = lines == 1 ? "" : "s";
+    const char* plural = plural_suffix(lines);
     bool success = false;
     int attempt = 0;
     while (true) {
@@ -363,7 +404,7 @@ void InfluxWriter::run(){
           RCLCPP_INFO(logger_, "Shutdown flush sent %zu measurement%s.", lines, plural);
         }
       } else {
-        const char* remain_plural = remaining == 1 ? "" : "s";
+        const char* remain_plural = plural_suffix(remaining);
         RCLCPP_INFO(logger_,
           "Shutdown flush sent %zu measurement%s. %zu measurement%s remain queued.",
           lines, plural, remaining, remain_plural);
@@ -437,17 +478,9 @@ bool InfluxWriter::post(const std::string& body){
     std::string msg = errbuf[0] ? errbuf : curl_easy_strerror(res);
     // include HTTP status if available; libcurl uses CURLE_HTTP_RETURNED_ERROR for >=400 with FAILONERROR
     if (res == CURLE_HTTP_RETURNED_ERROR) {
-      // best-effort parse of JSON error
-      std::string parsed;
-      if (!resp_body.empty() && resp_ct.find("application/json") != std::string::npos) {
-        const auto code = extract_json_string(resp_body, "code");
-        const auto m = extract_json_string(resp_body, "message");
-        if (!m.empty()) parsed = m;
-        if (!code.empty()) parsed = code + ": " + parsed;
-      }
-      if (parsed.empty()) parsed = trim(resp_body);
+      const std::string parsed = parse_error_payload(http, resp_body, resp_ct);
       throw InfluxHttpError(
-        parsed.empty() ? ("HTTP " + std::to_string(http)) : parsed,
+        parsed,
         http, res, resp_body
       );
     }
@@ -456,16 +489,9 @@ bool InfluxWriter::post(const std::string& body){
 
   // success codes only
   if (http < 200 || http >= 300) {
-    std::string parsed;
-    if (!resp_body.empty() && resp_ct.find("application/json") != std::string::npos) {
-      const auto code = extract_json_string(resp_body, "code");
-      const auto m = extract_json_string(resp_body, "message");
-      if (!m.empty()) parsed = m;
-      if (!code.empty()) parsed = code + ": " + parsed;
-    }
-    if (parsed.empty()) parsed = trim(resp_body);
+    const std::string parsed = parse_error_payload(http, resp_body, resp_ct);
     throw InfluxHttpError(
-      parsed.empty() ? ("HTTP " + std::to_string(http)) : parsed,
+      parsed,
       http, CURLE_OK, resp_body
     );
   }
