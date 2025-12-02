@@ -17,7 +17,6 @@ find_package(tf2 REQUIRED)
 find_package(tf2_ros REQUIRED)
 
 add_library(robot_influx_common_interfaces_translators SHARED
-  src/translator_utils.cpp
   src/imu_translator.cpp
   src/odometry_translator.cpp
   src/battery_state_translator.cpp

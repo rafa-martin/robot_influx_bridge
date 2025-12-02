@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 
 #include <robot_influx_bridge/translator_base.hpp>
-#include <robot_influx_common_interfaces/translator_utils.hpp>
+#include <robot_influx_bridge/translator_utils.hpp>
 
 #include <pluginlib/class_list_macros.hpp>
 #include <rclcpp/serialization.hpp>
@@ -28,7 +28,7 @@ public:
     serializer.deserialize_message(&message, &imu_message);
 
     std::ostringstream line;
-    line << build_series_name(context, "imu");
+    line << robot_influx_bridge::build_series_name(context, "imu");
     line << ' '
          << "ori_x=" << imu_message.orientation.x << ','
          << "ori_y=" << imu_message.orientation.y << ','
@@ -41,7 +41,7 @@ public:
          << "lin_y=" << imu_message.linear_acceleration.y << ','
          << "lin_z=" << imu_message.linear_acceleration.z;
 
-    append_timestamp_if_valid(line, imu_message.header.stamp);
+    robot_influx_bridge::append_timestamp_if_valid(line, imu_message.header.stamp);
     return {line.str()};
   }
 };

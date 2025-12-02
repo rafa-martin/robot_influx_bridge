@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 
 #include <robot_influx_bridge/translator_base.hpp>
-#include <robot_influx_common_interfaces/translator_utils.hpp>
-#include <robot_influx_common_interfaces/line_protocol_utils.hpp>
+#include <robot_influx_bridge/translator_utils.hpp>
+#include <robot_influx_bridge/line_protocol_utils.hpp>
 
 #include <pluginlib/class_list_macros.hpp>
 #include <rclcpp/serialization.hpp>
@@ -124,7 +124,7 @@ public:
       const auto transform = buffer_->lookupTransform(
         target_frame_, source_frame_, tf2::TimePointZero, lookup_timeout_);
 
-      const int64_t current_stamp = line_protocol::stamp_to_nanoseconds(transform.header.stamp);
+      const int64_t current_stamp = robot_influx_bridge::line_protocol::stamp_to_nanoseconds(transform.header.stamp);
       if (has_last_stamp_ && current_stamp <= last_stamp_ns_) {
         return {};
       }
@@ -143,7 +143,7 @@ public:
            << "rot_z=" << transform.transform.rotation.z << ','
            << "rot_w=" << transform.transform.rotation.w;
 
-      append_timestamp_if_valid(line, transform.header.stamp);
+      robot_influx_bridge::append_timestamp_if_valid(line, transform.header.stamp);
       return {line.str()};
     } catch (const tf2::TransformException & ex) {
       if (clock_) {
@@ -216,7 +216,7 @@ private:
   std::string build_series_name_with_frames(const robot_influx_bridge::TranslatorContext & context) const
   {
     const std::string measurement =
-      line_protocol::resolve_measurement_name(context.measurement, "tf");
+      robot_influx_bridge::line_protocol::resolve_measurement_name(context.measurement, "tf");
 
     std::vector<std::pair<std::string, std::string>> tags{
       context.static_tags.begin(), context.static_tags.end()};
@@ -234,10 +234,10 @@ private:
     });
 
     std::ostringstream series;
-    series << line_protocol::escape_measurement(measurement);
+    series << robot_influx_bridge::line_protocol::escape_measurement(measurement);
     for (const auto & [key, value] : tags) {
-      series << ',' << line_protocol::escape_field_key(key) << '='
-             << line_protocol::escape_tag_value(value);
+      series << ',' << robot_influx_bridge::line_protocol::escape_field_key(key) << '='
+             << robot_influx_bridge::line_protocol::escape_tag_value(value);
     }
     return series.str();
   }

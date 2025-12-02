@@ -1,16 +1,16 @@
 // SPDX-License-Identifier: MIT
 
-#include <robot_influx_common_interfaces/translator_utils.hpp>
+#include <robot_influx_bridge/translator_utils.hpp>
 
 #include <algorithm>
 #include <utility>
 #include <vector>
 
-namespace robot_influx_common_interfaces
+namespace robot_influx_bridge
 {
 
 std::string build_series_name(
-  const robot_influx_bridge::TranslatorContext & context,
+  const TranslatorContext & context,
   const std::string & default_measurement)
 {
   const std::string measurement =
@@ -41,4 +41,4 @@ void append_timestamp_if_valid(std::ostringstream & stream, const builtin_interf
   }
 }
 
-}  // namespace robot_influx_common_interfaces
+}  // namespace robot_influx_bridge

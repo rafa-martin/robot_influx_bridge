@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 
 #include <robot_influx_bridge/translator_base.hpp>
-#include <robot_influx_common_interfaces/translator_utils.hpp>
+#include <robot_influx_bridge/translator_utils.hpp>
 
 #include <pluginlib/class_list_macros.hpp>
 #include <rclcpp/serialization.hpp>
@@ -28,7 +28,7 @@ public:
     serializer.deserialize_message(&message, &odometry_message);
 
     std::ostringstream line;
-    line << build_series_name(context, "odometry");
+    line << robot_influx_bridge::build_series_name(context, "odometry");
     line << ' '
          << "pos_x=" << odometry_message.pose.pose.position.x << ','
          << "pos_y=" << odometry_message.pose.pose.position.y << ','
@@ -44,7 +44,7 @@ public:
          << "ang_y=" << odometry_message.twist.twist.angular.y << ','
          << "ang_z=" << odometry_message.twist.twist.angular.z;
 
-    append_timestamp_if_valid(line, odometry_message.header.stamp);
+    robot_influx_bridge::append_timestamp_if_valid(line, odometry_message.header.stamp);
     return {line.str()};
   }
 };

@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 
 #include <robot_influx_bridge/translator_base.hpp>
-#include <robot_influx_common_interfaces/translator_utils.hpp>
-#include <robot_influx_common_interfaces/line_protocol_utils.hpp>
+#include <robot_influx_bridge/translator_utils.hpp>
+#include <robot_influx_bridge/line_protocol_utils.hpp>
 
 #include <pluginlib/class_list_macros.hpp>
 #include <rclcpp/serialization.hpp>
@@ -29,7 +29,7 @@ public:
     serializer.deserialize_message(&message, &battery_message);
 
     std::ostringstream line;
-    line << build_series_name(context, "battery");
+    line << robot_influx_bridge::build_series_name(context, "battery");
     line << ' '
          << "voltage=" << battery_message.voltage << ','
          << "current=" << battery_message.current << ','
@@ -45,17 +45,17 @@ public:
 
     if (!battery_message.location.empty()) {
       line << ','
-           << line_protocol::escape_field_key("location") << '='
-           << line_protocol::escape_string_field_value(battery_message.location);
+           << robot_influx_bridge::line_protocol::escape_field_key("location") << '='
+           << robot_influx_bridge::line_protocol::escape_string_field_value(battery_message.location);
     }
 
     if (!battery_message.serial_number.empty()) {
       line << ','
-           << line_protocol::escape_field_key("serial_number") << '='
-           << line_protocol::escape_string_field_value(battery_message.serial_number);
+           << robot_influx_bridge::line_protocol::escape_field_key("serial_number") << '='
+           << robot_influx_bridge::line_protocol::escape_string_field_value(battery_message.serial_number);
     }
 
-    append_timestamp_if_valid(line, battery_message.header.stamp);
+    robot_influx_bridge::append_timestamp_if_valid(line, battery_message.header.stamp);
     return {line.str()};
   }
 };

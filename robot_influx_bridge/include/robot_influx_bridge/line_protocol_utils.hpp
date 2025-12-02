@@ -7,8 +7,9 @@
 #include <cstdint>
 #include <string>
 
-namespace robot_influx_common_interfaces::line_protocol
+namespace robot_influx_bridge::line_protocol
 {
+
 inline std::string escape_measurement(const std::string & value)
 {
   std::string escaped;
@@ -65,4 +66,4 @@ inline std::string resolve_measurement_name(const std::string & configured, cons
   return configured.empty() ? fallback : configured;
 }
 
-}  // namespace robot_influx_common_interfaces::line_protocol
+}  // namespace robot_influx_bridge::line_protocol
