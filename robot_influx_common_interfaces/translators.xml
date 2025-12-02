@@ -15,4 +15,20 @@
          base_class_type="robot_influx_bridge::TranslatorBase">
     <description>Periodically exports TF transforms using tf2 to InfluxDB</description>
   </class>
+  <class type="robot_influx_common_interfaces::TwistTranslator"
+         base_class_type="robot_influx_bridge::TranslatorBase">
+    <description>Translates geometry_msgs/Twist messages to InfluxDB points</description>
+  </class>
+  <class type="robot_influx_common_interfaces::BoolTranslator"
+         base_class_type="robot_influx_bridge::TranslatorBase">
+    <description>Translates std_msgs/Bool messages to InfluxDB points</description>
+  </class>
+  <class type="robot_influx_common_interfaces::NavSatFixTranslator"
+         base_class_type="robot_influx_bridge::TranslatorBase">
+    <description>Translates sensor_msgs/NavSatFix messages to InfluxDB points</description>
+  </class>
+  <class type="robot_influx_common_interfaces::JointStateTranslator"
+         base_class_type="robot_influx_bridge::TranslatorBase">
+    <description>Translates sensor_msgs/JointState messages to InfluxDB points</description>
+  </class>
 </library>
