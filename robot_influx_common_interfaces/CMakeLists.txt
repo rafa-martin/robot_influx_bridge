@@ -17,7 +17,11 @@ find_package(tf2 REQUIRED)
 find_package(tf2_ros REQUIRED)
 
 add_library(robot_influx_common_interfaces_translators SHARED
-  src/translators.cpp
+  src/translator_utils.cpp
+  src/imu_translator.cpp
+  src/odometry_translator.cpp
+  src/battery_state_translator.cpp
+  src/tf_basic_translator.cpp
 )
 target_include_directories(robot_influx_common_interfaces_translators PUBLIC
   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>

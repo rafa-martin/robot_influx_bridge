@@ -56,8 +56,8 @@ private:
   rclcpp::TimerBase::SharedPtr diagnostics_timer_;
   diagnostic_updater::Updater diagnostics_updater_;
 
-  void addMappingFromParams(const std::string& mapping_id);
-  void publishDiagnostics(diagnostic_updater::DiagnosticStatusWrapper& status);
+  void add_mapping_from_params(const std::string& mapping_id);
+  void publish_diagnostics(diagnostic_updater::DiagnosticStatusWrapper& status);
 };
 
 }  // namespace robot_influx_bridge

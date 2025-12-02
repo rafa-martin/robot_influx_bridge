@@ -1,13 +1,11 @@
 // SPDX-License-Identifier: MIT
 
 #include <robot_influx_bridge/translator_base.hpp>
+#include <robot_influx_common_interfaces/translator_utils.hpp>
+#include <robot_influx_common_interfaces/line_protocol_utils.hpp>
 
 #include <pluginlib/class_list_macros.hpp>
 #include <rclcpp/serialization.hpp>
-
-#include <nav_msgs/msg/odometry.hpp>
-#include <sensor_msgs/msg/battery_state.hpp>
-#include <sensor_msgs/msg/imu.hpp>
 #include <geometry_msgs/msg/transform_stamped.hpp>
 #include <rclcpp/clock.hpp>
 #include <rclcpp/node.hpp>
@@ -16,166 +14,19 @@
 #include <tf2_ros/buffer.h>
 #include <tf2_ros/transform_listener.h>
 
-#include <robot_influx_common_interfaces/line_protocol_utils.hpp>
-
 #include <algorithm>
 #include <chrono>
 #include <exception>
 #include <memory>
+#include <optional>
 #include <sstream>
+#include <string>
 #include <unordered_map>
 #include <utility>
 #include <vector>
 
 namespace robot_influx_common_interfaces
 {
-namespace
-{
-std::string buildSeriesName(
-  const robot_influx_bridge::TranslatorContext & context,
-  const std::string & default_measurement)
-{
-  const std::string measurement =
-    line_protocol::resolveMeasurementName(context.measurement, default_measurement);
-
-  std::ostringstream series;
-  series << line_protocol::escapeMeasurement(measurement);
-
-  std::vector<std::pair<std::string, std::string>> tags{
-    context.static_tags.begin(), context.static_tags.end()};
-  std::sort(tags.begin(), tags.end(), [](const auto & lhs, const auto & rhs) {
-    return lhs.first < rhs.first;
-  });
-
-  for (const auto & [key, value] : tags) {
-    series << ',' << line_protocol::escapeFieldKey(key) << '='
-           << line_protocol::escapeTagValue(value);
-  }
-
-  return series.str();
-}
-
-void appendTimestampIfValid(std::ostringstream & stream, const builtin_interfaces::msg::Time & stamp)
-{
-  const int64_t time_ns = line_protocol::stampToNanoseconds(stamp);
-  if (time_ns != 0) {
-    stream << ' ' << time_ns;
-  }
-}
-
-}  // namespace
-
-class ImuTranslator final : public robot_influx_bridge::TranslatorBase
-{
-public:
-  std::string type_name() const override { return "sensor_msgs/msg/Imu"; }
-
-  std::vector<std::string> to_line_protocol(
-    const rclcpp::SerializedMessage & message,
-    const robot_influx_bridge::TranslatorContext & context) override
-  {
-    rclcpp::Serialization<sensor_msgs::msg::Imu> serializer;
-    sensor_msgs::msg::Imu imu_message;
-    serializer.deserialize_message(&message, &imu_message);
-
-    std::ostringstream line;
-    line << buildSeriesName(context, "imu");
-    line << ' '
-         << "ori_x=" << imu_message.orientation.x << ','
-         << "ori_y=" << imu_message.orientation.y << ','
-         << "ori_z=" << imu_message.orientation.z << ','
-         << "ori_w=" << imu_message.orientation.w << ','
-         << "ang_x=" << imu_message.angular_velocity.x << ','
-         << "ang_y=" << imu_message.angular_velocity.y << ','
-         << "ang_z=" << imu_message.angular_velocity.z << ','
-         << "lin_x=" << imu_message.linear_acceleration.x << ','
-         << "lin_y=" << imu_message.linear_acceleration.y << ','
-         << "lin_z=" << imu_message.linear_acceleration.z;
-
-    appendTimestampIfValid(line, imu_message.header.stamp);
-    return {line.str()};
-  }
-};
-
-class OdometryTranslator final : public robot_influx_bridge::TranslatorBase
-{
-public:
-  std::string type_name() const override { return "nav_msgs/msg/Odometry"; }
-
-  std::vector<std::string> to_line_protocol(
-    const rclcpp::SerializedMessage & message,
-    const robot_influx_bridge::TranslatorContext & context) override
-  {
-    rclcpp::Serialization<nav_msgs::msg::Odometry> serializer;
-    nav_msgs::msg::Odometry odometry_message;
-    serializer.deserialize_message(&message, &odometry_message);
-
-    std::ostringstream line;
-    line << buildSeriesName(context, "odometry");
-    line << ' '
-         << "pos_x=" << odometry_message.pose.pose.position.x << ','
-         << "pos_y=" << odometry_message.pose.pose.position.y << ','
-         << "pos_z=" << odometry_message.pose.pose.position.z << ','
-         << "ori_x=" << odometry_message.pose.pose.orientation.x << ','
-         << "ori_y=" << odometry_message.pose.pose.orientation.y << ','
-         << "ori_z=" << odometry_message.pose.pose.orientation.z << ','
-         << "ori_w=" << odometry_message.pose.pose.orientation.w << ','
-         << "lin_x=" << odometry_message.twist.twist.linear.x << ','
-         << "lin_y=" << odometry_message.twist.twist.linear.y << ','
-         << "lin_z=" << odometry_message.twist.twist.linear.z << ','
-         << "ang_x=" << odometry_message.twist.twist.angular.x << ','
-         << "ang_y=" << odometry_message.twist.twist.angular.y << ','
-         << "ang_z=" << odometry_message.twist.twist.angular.z;
-
-    appendTimestampIfValid(line, odometry_message.header.stamp);
-    return {line.str()};
-  }
-};
-
-class BatteryStateTranslator final : public robot_influx_bridge::TranslatorBase
-{
-public:
-  std::string type_name() const override { return "sensor_msgs/msg/BatteryState"; }
-
-  std::vector<std::string> to_line_protocol(
-    const rclcpp::SerializedMessage & message,
-    const robot_influx_bridge::TranslatorContext & context) override
-  {
-    rclcpp::Serialization<sensor_msgs::msg::BatteryState> serializer;
-    sensor_msgs::msg::BatteryState battery_message;
-    serializer.deserialize_message(&message, &battery_message);
-
-    std::ostringstream line;
-    line << buildSeriesName(context, "battery");
-    line << ' '
-         << "voltage=" << battery_message.voltage << ','
-         << "current=" << battery_message.current << ','
-         << "charge=" << battery_message.charge << ','
-         << "capacity=" << battery_message.capacity << ','
-         << "design_capacity=" << battery_message.design_capacity << ','
-         << "percentage=" << battery_message.percentage << ','
-         << "temperature=" << battery_message.temperature << ','
-         << "status=" << static_cast<int>(battery_message.power_supply_status) << 'i' << ','
-         << "health=" << static_cast<int>(battery_message.power_supply_health) << 'i' << ','
-         << "technology=" << static_cast<int>(battery_message.power_supply_technology) << 'i' << ','
-         << "present=" << (battery_message.present ? "true" : "false");
-
-    if (!battery_message.location.empty()) {
-      line << ','
-           << line_protocol::escapeFieldKey("location") << '='
-           << line_protocol::escapeStringFieldValue(battery_message.location);
-    }
-
-    if (!battery_message.serial_number.empty()) {
-      line << ','
-           << line_protocol::escapeFieldKey("serial_number") << '='
-           << line_protocol::escapeStringFieldValue(battery_message.serial_number);
-    }
-
-    appendTimestampIfValid(line, battery_message.header.stamp);
-    return {line.str()};
-  }
-};
 
 class TfBasicTranslator final : public robot_influx_bridge::TranslatorBase
 {
@@ -203,9 +54,9 @@ public:
       parent_frame_ = maybe_parent->second;
     }
 
-    const double buffer_time = parseDouble(context.custom_config, "buffer_time_sec", 10.0);
-    lookup_timeout_ = tf2::durationFromSec(parseDouble(context.custom_config, "lookup_timeout_sec", 0.1));
-    update_period_ = std::chrono::nanoseconds(parsePeriod(context.custom_config));
+    const double buffer_time = parse_double(context.custom_config, "buffer_time_sec", 10.0);
+    lookup_timeout_ = tf2::durationFromSec(parse_double(context.custom_config, "lookup_timeout_sec", 0.1));
+    update_period_ = std::chrono::nanoseconds(parse_period(context.custom_config));
 
     buffer_ = std::make_unique<tf2_ros::Buffer>(node.get_clock(), tf2::durationFromSec(buffer_time));
 
@@ -273,7 +124,7 @@ public:
       const auto transform = buffer_->lookupTransform(
         target_frame_, source_frame_, tf2::TimePointZero, lookup_timeout_);
 
-      const int64_t current_stamp = line_protocol::stampToNanoseconds(transform.header.stamp);
+      const int64_t current_stamp = line_protocol::stamp_to_nanoseconds(transform.header.stamp);
       if (has_last_stamp_ && current_stamp <= last_stamp_ns_) {
         return {};
       }
@@ -282,7 +133,7 @@ public:
       has_last_stamp_ = true;
 
       std::ostringstream line;
-      line << buildSeriesNameWithFrames(context);
+      line << build_series_name_with_frames(context);
       line << ' '
            << "trans_x=" << transform.transform.translation.x << ','
            << "trans_y=" << transform.transform.translation.y << ','
@@ -292,7 +143,7 @@ public:
            << "rot_z=" << transform.transform.rotation.z << ','
            << "rot_w=" << transform.transform.rotation.w;
 
-      appendTimestampIfValid(line, transform.header.stamp);
+      append_timestamp_if_valid(line, transform.header.stamp);
       return {line.str()};
     } catch (const tf2::TransformException & ex) {
       if (clock_) {
@@ -315,7 +166,7 @@ public:
   }
 
 private:
-  static double parseDouble(
+  static double parse_double(
     const std::unordered_map<std::string, std::string> & config,
     const std::string & key,
     double default_value)
@@ -331,7 +182,7 @@ private:
     }
   }
 
-  static int64_t parsePeriod(const std::unordered_map<std::string, std::string> & config)
+  static int64_t parse_period(const std::unordered_map<std::string, std::string> & config)
   {
     const auto frequency_it = config.find("frequency_hz");
     if (frequency_it != config.end()) {
@@ -362,10 +213,10 @@ private:
     return static_cast<int64_t>(1'000'000'000.0 / 50.0);
   }
 
-  std::string buildSeriesNameWithFrames(const robot_influx_bridge::TranslatorContext & context) const
+  std::string build_series_name_with_frames(const robot_influx_bridge::TranslatorContext & context) const
   {
     const std::string measurement =
-      line_protocol::resolveMeasurementName(context.measurement, "tf");
+      line_protocol::resolve_measurement_name(context.measurement, "tf");
 
     std::vector<std::pair<std::string, std::string>> tags{
       context.static_tags.begin(), context.static_tags.end()};
@@ -383,10 +234,10 @@ private:
     });
 
     std::ostringstream series;
-    series << line_protocol::escapeMeasurement(measurement);
+    series << line_protocol::escape_measurement(measurement);
     for (const auto & [key, value] : tags) {
-      series << ',' << line_protocol::escapeFieldKey(key) << '='
-             << line_protocol::escapeTagValue(value);
+      series << ',' << line_protocol::escape_field_key(key) << '='
+             << line_protocol::escape_tag_value(value);
     }
     return series.str();
   }
@@ -407,7 +258,4 @@ private:
 
 }  // namespace robot_influx_common_interfaces
 
-PLUGINLIB_EXPORT_CLASS(robot_influx_common_interfaces::ImuTranslator, robot_influx_bridge::TranslatorBase)
-PLUGINLIB_EXPORT_CLASS(robot_influx_common_interfaces::OdometryTranslator, robot_influx_bridge::TranslatorBase)
-PLUGINLIB_EXPORT_CLASS(robot_influx_common_interfaces::BatteryStateTranslator, robot_influx_bridge::TranslatorBase)
 PLUGINLIB_EXPORT_CLASS(robot_influx_common_interfaces::TfBasicTranslator, robot_influx_bridge::TranslatorBase)

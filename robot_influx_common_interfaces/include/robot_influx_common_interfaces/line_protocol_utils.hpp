@@ -9,7 +9,7 @@
 
 namespace robot_influx_common_interfaces::line_protocol
 {
-inline std::string escapeMeasurement(const std::string & value)
+inline std::string escape_measurement(const std::string & value)
 {
   std::string escaped;
   escaped.reserve(value.size());
@@ -22,7 +22,7 @@ inline std::string escapeMeasurement(const std::string & value)
   return escaped;
 }
 
-inline std::string escapeTagValue(const std::string & value)
+inline std::string escape_tag_value(const std::string & value)
 {
   std::string escaped;
   escaped.reserve(value.size());
@@ -35,12 +35,12 @@ inline std::string escapeTagValue(const std::string & value)
   return escaped;
 }
 
-inline std::string escapeFieldKey(const std::string & value)
+inline std::string escape_field_key(const std::string & value)
 {
-  return escapeTagValue(value);
+  return escape_tag_value(value);
 }
 
-inline std::string escapeStringFieldValue(const std::string & value)
+inline std::string escape_string_field_value(const std::string & value)
 {
   std::string escaped = "\"";
   escaped.reserve(value.size() + 2U);
@@ -54,13 +54,13 @@ inline std::string escapeStringFieldValue(const std::string & value)
   return escaped;
 }
 
-inline int64_t stampToNanoseconds(const builtin_interfaces::msg::Time & stamp)
+inline int64_t stamp_to_nanoseconds(const builtin_interfaces::msg::Time & stamp)
 {
   return static_cast<int64_t>(stamp.sec) * 1000000000LL
        + static_cast<int64_t>(stamp.nanosec);
 }
 
-inline std::string resolveMeasurementName(const std::string & configured, const std::string & fallback)
+inline std::string resolve_measurement_name(const std::string & configured, const std::string & fallback)
 {
   return configured.empty() ? fallback : configured;
 }

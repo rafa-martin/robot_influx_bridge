@@ -17,7 +17,7 @@
       - tf_map
 
     imu:
-      topic: "/imu"
+      topic: "/robot/imu/data"
       translator: "robot_influx_common_interfaces::ImuTranslator"
       measurement: "imu"
       max_rate: 200.0
@@ -39,9 +39,9 @@
       tag_keys:
         - frame_id=map
       custom_config:
-        - source_frame=base_link
-        - target_frame=map
-        - parent_frame=odom
+        - source_frame=robot_base_link
+        - target_frame=robot_odom
+        - parent_frame=robot_odom
         - buffer_time_sec=10.0
         - lookup_timeout_sec=0.1
         - frequency_hz=50.0

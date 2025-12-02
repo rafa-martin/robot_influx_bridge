@@ -40,7 +40,7 @@ InfluxBridgeNode::InfluxBridgeNode(rclcpp::NodeOptions const& options)
     static_cast<size_t>(params_.writer.persistence_max_megabytes));
 
   diagnostics_updater_.setHardwareID(this->get_fully_qualified_name());
-  diagnostics_updater_.add("Influx Writer", this, &InfluxBridgeNode::publishDiagnostics);
+  diagnostics_updater_.add("Influx Writer", this, &InfluxBridgeNode::publish_diagnostics);
   diagnostics_timer_ = this->create_wall_timer(1s, [this]() {
     diagnostics_updater_.force_update();
   });
@@ -54,12 +54,12 @@ InfluxBridgeNode::InfluxBridgeNode(rclcpp::NodeOptions const& options)
   // mappings
   RCLCPP_INFO(this->get_logger(), "Loaded plugins:");
   for (const auto & mapping_entry : params_.mappings_ids_map) {
-    addMappingFromParams(mapping_entry.first);
+    add_mapping_from_params(mapping_entry.first);
   }
 
 }
 
-void InfluxBridgeNode::addMappingFromParams(const std::string& mapping_id)
+void InfluxBridgeNode::add_mapping_from_params(const std::string& mapping_id)
 {
   const auto & entry = params_.mappings_ids_map.at(mapping_id);
 
@@ -243,7 +243,7 @@ void InfluxBridgeNode::addMappingFromParams(const std::string& mapping_id)
   topic_mappings_.push_back(std::move(mapping));
 }
 
-void InfluxBridgeNode::publishDiagnostics(diagnostic_updater::DiagnosticStatusWrapper& status)
+void InfluxBridgeNode::publish_diagnostics(diagnostic_updater::DiagnosticStatusWrapper& status)
 {
   status.summary(diagnostic_msgs::msg::DiagnosticStatus::OK, "OK");
 
