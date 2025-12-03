@@ -27,9 +27,6 @@ add_library(robot_influx_common_interfaces_translators SHARED
   src/nav_sat_fix_translator.cpp
   src/joint_state_translator.cpp
 )
-target_include_directories(robot_influx_common_interfaces_translators PUBLIC
-  $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>
-  $<INSTALL_INTERFACE:include/>)
 ament_target_dependencies(robot_influx_common_interfaces_translators
   pluginlib
   rclcpp
@@ -49,9 +46,6 @@ install(TARGETS robot_influx_common_interfaces_translators
   ARCHIVE DESTINATION lib
   LIBRARY DESTINATION lib
   RUNTIME DESTINATION bin)
-
-install(DIRECTORY include/
-  DESTINATION include)
 
 install(FILES translators.xml
   DESTINATION share/${PROJECT_NAME})
