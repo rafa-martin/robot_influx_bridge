@@ -4,7 +4,7 @@
       url: "http://localhost:8087"
       org: ""
       bucket: ""
-      token: "my-super-secret-auth-token"
+      token: "my-robot-token"
 
     writer:
       max_batch: 1000

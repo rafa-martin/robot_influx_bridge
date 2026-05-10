@@ -23,7 +23,7 @@ services:
     volumes:
       - ./telegraf.conf:/etc/telegraf/telegraf.conf:ro
     environment:
-      DOWNSTREAM_INFLUXDB_TOKEN: my-super-secret-auth-token
+      DOWNSTREAM_INFLUXDB_TOKEN: my-robot-token
       ROBOT_ID: ${HOSTNAME:-robot}
       UPSTREAM_INFLUXDB_URL: http://influxdb:8086
       UPSTREAM_INFLUXDB_TOKEN: my-super-secret-auth-token
