@@ -9,7 +9,7 @@
     Plugin-based translators that convert common ROS 2 messages into InfluxDB line protocol.
   </description>
   <maintainer email="theverbat@gmail.com">Rafael Martín</maintainer>
-  <license>MIT</license>
+  <license>BSD-3</license>
 
   <buildtool_depend>ament_cmake</buildtool_depend>
 

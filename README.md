@@ -64,7 +64,7 @@ the full schema defined in `bridge_parameters.yaml`.
     influx:
       url: "http://localhost:8087"
       org: "myorg"                    # Set by Docker setup
-      bucket: "mybucket"              # Set by Docker setup  
+      bucket: "mybucket"              # Set by Docker setup
       token: "my-super-secret-auth-token"
 
     writer:
@@ -113,7 +113,7 @@ the full schema defined in `bridge_parameters.yaml`.
 
 * When the `translator` field is empty, the bridge resolves a default translator based on
   the message type. Provide the fully qualified translator class name to override.
-* Static tags can be defined per mapping using `tag_keys`. They are automatically added 
+* Static tags can be defined per mapping using `tag_keys`. They are automatically added
   to every line produced by the translator.
 * Enable `writer.use_gzip` to compress HTTP payloads before sending them to InfluxDB.
   This is recommended when the bridge publishes large batches.
@@ -167,7 +167,7 @@ Common utilities for constructing line protocol strings live in
 
 ## Local Testing with Docker
 
-For local testing, the included `container/compose.yaml` can spin up InfluxDB together 
+For local testing, the included `container/compose.yaml` can spin up InfluxDB together
 with a Telegraf instance for inspecting the published data.
 
 ```bash
@@ -177,7 +177,7 @@ docker compose up -d
 
 This creates:
 - InfluxDB 2.x on port 8086 with admin credentials (`admin`/`adminpassword`)
-- Organization: `myorg`, Bucket: `mybucket` 
+- Organization: `myorg`, Bucket: `mybucket`
 - Auth token: `my-super-secret-auth-token`
 - Telegraf proxy on port 8087 for data collection
 - 1 week data retention policy
@@ -188,4 +188,4 @@ the collected telemetry data.
 
 ## License
 
-The project is distributed under the MIT License. See `LICENSE` for details.
+The project is distributed under the BSD-3-Clause License. See `LICENSE` for details.

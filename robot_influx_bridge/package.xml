@@ -9,7 +9,7 @@
     Robotnik common software for ROS2 packages.
   </description>
   <maintainer email="theverbat@gmail.com">Rafael Martín</maintainer>
-  <license>MIT</license>
+  <license>BSD-3</license>
 
   <buildtool_depend>ament_cmake</buildtool_depend>
 
