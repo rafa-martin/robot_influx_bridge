@@ -35,5 +35,20 @@ services:
         protocol: tcp
         mode: host
 
+  grafana:
+    image: grafana/grafana:11.6.0
+    restart: unless-stopped
+    depends_on:
+      - influxdb
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: adminpassword
+
 volumes:
   influxdb_data:
+  grafana_data:
