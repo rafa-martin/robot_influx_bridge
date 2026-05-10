@@ -6,24 +6,32 @@ This package provides a collection of reusable translators for common ROS 2 mess
 
 | Translator | Message Type | InfluxDB Fields | Configuration Notes |
 |------------|--------------|-----------------|-------------------|
-| **ImuTranslator** | `sensor_msgs/msg/Imu` | orientation (quaternion), angular_velocity (xyz), linear_acceleration (xyz) | Supports frame_id as tag |
-| **OdometryTranslator** | `nav_msgs/msg/Odometry` | pose position/orientation, twist linear/angular | Supports child_frame_id as tag |
-| **BatteryStateTranslator** | `sensor_msgs/msg/BatteryState` | voltage, current, charge, capacity, percentage, power_supply_status | Multiple batteries supported |
-| **TfBasicTranslator** | TF Transforms | position (xyz), orientation (quaternion) | Uses custom_config for transform parameters |
+| **ImuTranslator** | `sensor_msgs/msg/Imu` | ori_xyzw, ang_xyz, lin_xyz | Static tags via `tag_keys` |
+| **OdometryTranslator** | `nav_msgs/msg/Odometry` | pos_xyz, ori_xyzw, lin_xyz, ang_xyz | Static tags via `tag_keys` |
+| **BatteryStateTranslator** | `sensor_msgs/msg/BatteryState` | voltage, current, charge, capacity, percentage, temperature, status, health, technology, present | Static tags via `tag_keys` |
+| **TfBasicTranslator** | TF Transforms | trans_xyz, rot_xyzw | Uses `custom_config` for source/target/parent frames and frequency |
+| **TwistTranslator** | `geometry_msgs/msg/Twist` | linear_xyz, angular_xyz | Static tags via `tag_keys` |
+| **BoolTranslator** | `std_msgs/msg/Bool` | value | Static tags via `tag_keys` |
+| **NavSatFixTranslator** | `sensor_msgs/msg/NavSatFix` | latitude, longitude, altitude, status, service, cov_xx/yy/zz, cov_type | Covariance written only when type is not UNKNOWN |
+| **JointStateTranslator** | `sensor_msgs/msg/JointState` | position, velocity, effort | One line per joint; joint name added as `joint` tag |
 
-## Files Structure
+## File Structure
 
 This package has been refactored to split the translator implementations into separate files for better maintainability:
 
-### Common Utilities
-- `include/robot_influx_common_interfaces/translator_utils.hpp` - Header for common utility functions
-- `src/translator_utils.cpp` - Implementation of common utility functions (`buildSeriesName`, `appendTimestampIfValid`)
+### Common Utilities (in `robot_influx_bridge`)
+- `robot_influx_bridge/include/robot_influx_bridge/translator_utils.hpp` - Header for common utility functions
+- `robot_influx_bridge/src/translator_utils.cpp` - Implementation of `build_series_name` and `append_timestamp_if_valid`
 
 ### Individual Translators
 - `src/imu_translator.cpp` - IMU message translator (`sensor_msgs/msg/Imu` → InfluxDB)
-- `src/odometry_translator.cpp` - Odometry message translator (`nav_msgs/msg/Odometry` → InfluxDB) 
+- `src/odometry_translator.cpp` - Odometry message translator (`nav_msgs/msg/Odometry` → InfluxDB)
 - `src/battery_state_translator.cpp` - Battery state translator (`sensor_msgs/msg/BatteryState` → InfluxDB)
 - `src/tf_basic_translator.cpp` - TF transform translator (periodic TF lookups → InfluxDB)
+- `src/twist_translator.cpp` - Twist message translator (`geometry_msgs/msg/Twist` → InfluxDB)
+- `src/bool_translator.cpp` - Bool message translator (`std_msgs/msg/Bool` → InfluxDB)
+- `src/nav_sat_fix_translator.cpp` - GPS fix translator (`sensor_msgs/msg/NavSatFix` → InfluxDB)
+- `src/joint_state_translator.cpp` - Joint state translator (`sensor_msgs/msg/JointState` → InfluxDB)
 
 ## Configuration Examples
 

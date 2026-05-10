@@ -6,10 +6,10 @@
   <name>robot_influx_bridge</name>
   <version>0.0.0</version>
   <description>
-    Robotnik common software for ROS2 packages.
+    ROS 2 bridge that forwards robot telemetry to InfluxDB using pluginlib-based translators.
   </description>
   <maintainer email="theverbat@gmail.com">Rafael Martín</maintainer>
-  <license>BSD-3</license>
+  <license>BSD-3-Clause</license>
 
   <buildtool_depend>ament_cmake</buildtool_depend>
 

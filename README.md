@@ -136,6 +136,10 @@ The `robot_influx_common_interfaces` package provides several built-in translato
 | `robot_influx_common_interfaces::OdometryTranslator` | `nav_msgs/msg/Odometry` | Converts robot odometry (pose, twist) |
 | `robot_influx_common_interfaces::BatteryStateTranslator` | `sensor_msgs/msg/BatteryState` | Converts battery status and metrics |
 | `robot_influx_common_interfaces::TfBasicTranslator` | TF transforms | Periodically looks up and logs transform relationships |
+| `robot_influx_common_interfaces::TwistTranslator` | `geometry_msgs/msg/Twist` | Converts linear and angular velocity commands |
+| `robot_influx_common_interfaces::BoolTranslator` | `std_msgs/msg/Bool` | Converts a boolean value to a single field |
+| `robot_influx_common_interfaces::NavSatFixTranslator` | `sensor_msgs/msg/NavSatFix` | Converts GPS fix (latitude, longitude, altitude, covariance) |
+| `robot_influx_common_interfaces::JointStateTranslator` | `sensor_msgs/msg/JointState` | Converts joint position, velocity, and effort (one line per joint) |
 
 All translators support custom configuration via the `tag_keys` and `custom_config` parameters.
 

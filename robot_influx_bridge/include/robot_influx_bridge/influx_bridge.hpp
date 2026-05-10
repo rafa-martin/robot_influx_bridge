@@ -26,23 +26,21 @@
 // ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 // POSSIBILITY OF SUCH DAMAGE.
 
-
 #pragma once
 #ifndef ROBOT_INFLUX_BRIDGE__INFLUX_BRIDGE_HPP_
 #define ROBOT_INFLUX_BRIDGE__INFLUX_BRIDGE_HPP_
 
-#include <rclcpp/rclcpp.hpp>
-#include <rclcpp/duration.hpp>
-#include <rclcpp/generic_subscription.hpp>
-#include <rclcpp/time.hpp>
-#include <rclcpp/timer.hpp>
 #include <diagnostic_msgs/msg/diagnostic_status.hpp>
 #include <diagnostic_updater/diagnostic_updater.hpp>
 #include <pluginlib/class_loader.hpp>
-
-#include <robot_influx_bridge/translator_base.hpp>
-#include <robot_influx_bridge/influx_writer.hpp>
+#include <rclcpp/duration.hpp>
+#include <rclcpp/generic_subscription.hpp>
+#include <rclcpp/rclcpp.hpp>
+#include <rclcpp/time.hpp>
+#include <rclcpp/timer.hpp>
 #include <robot_influx_bridge/bridge_parameters.hpp>
+#include <robot_influx_bridge/influx_writer.hpp>
+#include <robot_influx_bridge/translator_base.hpp>
 
 #include <memory>
 #include <string>
@@ -53,41 +51,41 @@ namespace robot_influx_bridge {
 /// Stores the objects required to service a single mapping between a ROS topic and
 /// an InfluxDB measurement.
 struct TopicMapping {
-  std::string topic_name;
-  TranslatorContext translator_context;
-  std::shared_ptr<rclcpp::GenericSubscription> subscription;
-  rclcpp::TimerBase::SharedPtr timer;
-  std::shared_ptr<TranslatorBase> translator;
+    std::string topic_name;
+    TranslatorContext translator_context;
+    std::shared_ptr<rclcpp::GenericSubscription> subscription;
+    rclcpp::TimerBase::SharedPtr timer;
+    std::shared_ptr<TranslatorBase> translator;
 
-  struct DownsampleState {
-    rclcpp::Duration min_gap{0, 0};
-    rclcpp::Time last_emit;
-    bool has_last_emit{false};
-  };
+    struct DownsampleState {
+        rclcpp::Duration min_gap{0, 0};
+        rclcpp::Time last_emit;
+        bool has_last_emit{false};
+    };
 
-  std::shared_ptr<DownsampleState> downsample_state;
+    std::shared_ptr<DownsampleState> downsample_state;
 };
 
 /// Node responsible for loading translator plugins and forwarding telemetry batches to
 /// InfluxDB.
 struct InfluxBridgeNode : public rclcpp::Node {
-  explicit InfluxBridgeNode(const rclcpp::NodeOptions& options = rclcpp::NodeOptions());
+    explicit InfluxBridgeNode(const rclcpp::NodeOptions& options = rclcpp::NodeOptions());
 
 private:
-  std::shared_ptr<influx_bridge::ParamListener> param_listener_;
-  influx_bridge::Params params_;
+    std::shared_ptr<influx_bridge::ParamListener> param_listener_;
+    influx_bridge::Params params_;
 
-  std::unique_ptr<pluginlib::ClassLoader<TranslatorBase>> translator_loader_;
-  std::unique_ptr<robot_influx_bridge::InfluxWriter> writer_;
-  std::vector<TopicMapping> topic_mappings_;
+    std::unique_ptr<pluginlib::ClassLoader<TranslatorBase>> translator_loader_;
+    std::unique_ptr<robot_influx_bridge::InfluxWriter> writer_;
+    std::vector<TopicMapping> topic_mappings_;
 
-  rclcpp::TimerBase::SharedPtr diagnostics_timer_;
-  diagnostic_updater::Updater diagnostics_updater_;
+    rclcpp::TimerBase::SharedPtr diagnostics_timer_;
+    diagnostic_updater::Updater diagnostics_updater_;
 
-  void add_mapping_from_params(const std::string& mapping_id);
-  void publish_diagnostics(diagnostic_updater::DiagnosticStatusWrapper& status);
+    void add_mapping_from_params(const std::string& mapping_id);
+    void publish_diagnostics(diagnostic_updater::DiagnosticStatusWrapper& status);
 };
 
-}  // namespace robot_influx_bridge
+} // namespace robot_influx_bridge
 
-#endif  // ROBOT_INFLUX_BRIDGE__INFLUX_BRIDGE_HPP_
+#endif // ROBOT_INFLUX_BRIDGE__INFLUX_BRIDGE_HPP_

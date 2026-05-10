@@ -26,15 +26,17 @@
 // ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 // POSSIBILITY OF SUCH DAMAGE.
 
-
 #pragma once
 #ifndef ROBOT_INFLUX_BRIDGE__INFLUX_WRITER_HPP_
 #define ROBOT_INFLUX_BRIDGE__INFLUX_WRITER_HPP_
 
+#include <rclcpp/logger.hpp>
+#include <robot_influx_bridge/persistent_batch_store.hpp>
+
 #include <atomic>
 #include <chrono>
-#include <cstdint>
 #include <condition_variable>
+#include <cstdint>
 #include <memory>
 #include <mutex>
 #include <optional>
@@ -42,10 +44,6 @@
 #include <string>
 #include <thread>
 #include <vector>
-
-#include <rclcpp/logger.hpp>
-
-#include <robot_influx_bridge/persistent_batch_store.hpp>
 
 namespace robot_influx_bridge {
 
@@ -56,74 +54,77 @@ namespace robot_influx_bridge {
 /// `last_error()` accessor can be polled to surface the latest HTTP or network issue.
 class InfluxWriter {
 public:
-  InfluxWriter(const rclcpp::Logger& logger,
-               const std::string& url, const std::string& org,
-               const std::string& bucket, const std::string& token,
-               size_t max_batch = 1000, size_t max_queue = 100000,
-               std::chrono::milliseconds flush = std::chrono::milliseconds(500),
-               bool use_gzip = false,
-               const std::string& persistence_path = std::string(),
-               size_t persistence_max_megabytes = 64);
-  ~InfluxWriter();
+    InfluxWriter(const rclcpp::Logger& logger,
+                 const std::string& url,
+                 const std::string& org,
+                 const std::string& bucket,
+                 const std::string& token,
+                 size_t max_batch = 1000,
+                 size_t max_queue = 100000,
+                 std::chrono::milliseconds flush = std::chrono::milliseconds(500),
+                 bool use_gzip = false,
+                 const std::string& persistence_path = std::string(),
+                 size_t persistence_max_megabytes = 64);
+    ~InfluxWriter();
 
-  /// Queue a line protocol string for upload. Returns `false` if the queue is full.
-  bool enqueue(std::string line);
+    /// Queue a line protocol string for upload. Returns `false` if the queue is full.
+    bool enqueue(std::string line);
 
-  /// Retrieve the last error message reported by the uploader. Returns an empty string
-  /// when no error has been observed.
-  std::string last_error() const;
+    /// Retrieve the last error message reported by the uploader. Returns an empty string
+    /// when no error has been observed.
+    std::string last_error() const;
 
-  /// Current number of queued line protocol messages waiting to be batched.
-  size_t queue_depth() const noexcept;
+    /// Current number of queued line protocol messages waiting to be batched.
+    size_t queue_depth() const noexcept;
 
-  /// Maximum configured queue capacity.
-  size_t max_queue_size() const noexcept;
+    /// Maximum configured queue capacity.
+    size_t max_queue_size() const noexcept;
 
-  /// Total number of persisted batches waiting on disk.
-  size_t pending_batch_count() const noexcept;
+    /// Total number of persisted batches waiting on disk.
+    size_t pending_batch_count() const noexcept;
 
-  /// Bytes currently consumed by the persistence directory.
-  uintmax_t persistence_bytes_used() const noexcept;
+    /// Bytes currently consumed by the persistence directory.
+    uintmax_t persistence_bytes_used() const noexcept;
 
 private:
-  void run();
-  struct SendAttemptResult {
-    bool success{false};
-    bool retryable{false};
-    std::string reason;
-  };
-  SendAttemptResult send_batch(const std::vector<std::string>& lines);
-  std::string build_body(const std::vector<std::string>& lines) const;
-  std::chrono::milliseconds backoff_duration(size_t attempt) const;
-  bool post(const std::string& body);
-  void set_last_error(std::string message) const;
-  void update_persistence_metrics();
+    void run();
+    struct SendAttemptResult {
+        bool success{false};
+        bool retryable{false};
+        std::string reason;
+    };
+    SendAttemptResult send_batch(const std::vector<std::string>& lines);
+    std::string build_body(const std::vector<std::string>& lines) const;
+    std::chrono::milliseconds backoff_duration(size_t attempt) const;
+    bool post(const std::string& body);
+    void set_last_error(std::string message) const;
+    void update_persistence_metrics();
 
-  std::string endpoint_, token_;
-  size_t max_batch_, max_queue_;
-  std::chrono::milliseconds flush_;
-  rclcpp::Logger logger_;
-  std::mutex m_;
-  std::condition_variable cv_;
-  std::queue<std::string> q_;
-  std::atomic<bool> stop_{false};
-  std::thread th_;
-  mutable std::mutex error_mutex_;
-  mutable std::string last_error_;
-  std::atomic<bool> has_logged_success_{false};
-  std::atomic<bool> error_since_last_success_{false};
-  bool use_gzip_;
-  bool logged_shutdown_flush_started_{false};
-  bool logged_shutdown_flush_completed_{false};
-  std::unique_ptr<PersistentBatchStore> persistent_store_;
-  std::optional<typename PersistentBatchStore::PendingBatch> pending_disk_batch_;
-  size_t pending_disk_attempts_{0};
-  bool logged_connection_loss_{false};
-  std::atomic<size_t> queue_depth_{0};
-  std::atomic<size_t> pending_persisted_batches_{0};
-  std::atomic<uintmax_t> persistence_bytes_used_{0};
+    std::string endpoint_, token_;
+    size_t max_batch_, max_queue_;
+    std::chrono::milliseconds flush_;
+    rclcpp::Logger logger_;
+    std::mutex m_;
+    std::condition_variable cv_;
+    std::queue<std::string> q_;
+    std::atomic<bool> stop_{false};
+    std::thread th_;
+    mutable std::mutex error_mutex_;
+    mutable std::string last_error_;
+    std::atomic<bool> has_logged_success_{false};
+    std::atomic<bool> error_since_last_success_{false};
+    bool use_gzip_;
+    bool logged_shutdown_flush_started_{false};
+    bool logged_shutdown_flush_completed_{false};
+    std::unique_ptr<PersistentBatchStore> persistent_store_;
+    std::optional<typename PersistentBatchStore::PendingBatch> pending_disk_batch_;
+    size_t pending_disk_attempts_{0};
+    bool logged_connection_loss_{false};
+    std::atomic<size_t> queue_depth_{0};
+    std::atomic<size_t> pending_persisted_batches_{0};
+    std::atomic<uintmax_t> persistence_bytes_used_{0};
 };
 
-}  // namespace robot_influx_bridge
+} // namespace robot_influx_bridge
 
-#endif  // ROBOT_INFLUX_BRIDGE__INFLUX_WRITER_HPP_
+#endif // ROBOT_INFLUX_BRIDGE__INFLUX_WRITER_HPP_

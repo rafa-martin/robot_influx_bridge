@@ -26,39 +26,38 @@
 // ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 // POSSIBILITY OF SUCH DAMAGE.
 
-
 #pragma once
 #ifndef ROBOT_INFLUX_BRIDGE__INFLUX_ERROR_HPP_
 #define ROBOT_INFLUX_BRIDGE__INFLUX_ERROR_HPP_
 
+#include <curl/curl.h>
+
 #include <stdexcept>
 #include <string>
-
-#include <curl/curl.h>
 
 namespace robot_influx_bridge {
 
 struct InfluxError : public std::runtime_error {
-  InfluxError(std::string msg, long http=0, CURLcode curl=CURLcode(0), std::string body="");
+    InfluxError(std::string msg, long http = 0, CURLcode curl = CURLcode(0), std::string body = "");
 
-  inline long http_status() const noexcept { return http_status_; }
-  inline CURLcode curl_code() const noexcept { return curl_code_; }
-  inline const std::string& body() const noexcept { return body_; }
+    inline long http_status() const noexcept { return http_status_; }
+    inline CURLcode curl_code() const noexcept { return curl_code_; }
+    inline const std::string& body() const noexcept { return body_; }
 
 private:
-  long http_status_;
-  CURLcode curl_code_;
-  std::string body_;
+    long http_status_;
+    CURLcode curl_code_;
+    std::string body_;
 };
 
 struct InfluxNetworkError : public InfluxError {
-  using InfluxError::InfluxError;
+    using InfluxError::InfluxError;
 };
 
 struct InfluxHttpError : public InfluxError {
-  using InfluxError::InfluxError;
+    using InfluxError::InfluxError;
 };
 
-}  // namespace robot_influx_bridge
+} // namespace robot_influx_bridge
 
-#endif  // ROBOT_INFLUX_BRIDGE__INFLUX_ERROR_HPP_
+#endif // ROBOT_INFLUX_BRIDGE__INFLUX_ERROR_HPP_
