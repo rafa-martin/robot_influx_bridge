@@ -53,7 +53,13 @@ std::string build_series_name(const TranslatorContext& context, const std::strin
 void append_timestamp_if_valid(std::ostringstream& stream, const builtin_interfaces::msg::Time& stamp) {
     const int64_t time_ns = line_protocol::stamp_to_nanoseconds(stamp);
     if (time_ns != 0) {
+        // Append timestamp in nanoseconds if valid (non-zero)
         stream << ' ' << time_ns;
+    }
+    else {
+        // No timestamp available, Use current time when the point is written to InfluxDB
+        auto const now = std::chrono::system_clock::now();
+        stream << ' ' << std::chrono::duration_cast<std::chrono::nanoseconds>(now.time_since_epoch()).count();
     }
 }
 
