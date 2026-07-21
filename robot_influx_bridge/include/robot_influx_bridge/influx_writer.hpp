@@ -99,6 +99,7 @@ private:
     bool post(const std::string& body);
     void set_last_error(std::string message) const;
     void update_persistence_metrics();
+    void persist_pending_full_batches();
 
     std::string endpoint_, token_;
     size_t max_batch_, max_queue_;

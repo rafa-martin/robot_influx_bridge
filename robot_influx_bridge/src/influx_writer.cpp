@@ -455,6 +455,12 @@ void InfluxWriter::run() {
                                 static_cast<long>(backoff.count()));
                 }
 
+                // While the disk queue is being retried during a sustained outage, keep
+                // moving complete in-memory batches to disk. Otherwise this branch would
+                // monopolize the worker reuploading the same persisted batch and let the
+                // in-memory queue overflow, silently dropping freshly produced data.
+                persist_pending_full_batches();
+
                 std::this_thread::sleep_for(backoff);
                 continue;
             }
@@ -766,6 +772,37 @@ void InfluxWriter::update_persistence_metrics() {
     }
     pending_persisted_batches_.store(pending, std::memory_order_relaxed);
     persistence_bytes_used_.store(bytes, std::memory_order_relaxed);
+}
+
+void InfluxWriter::persist_pending_full_batches() {
+    if (!persistent_store_) {
+        return;
+    }
+
+    // Only drain complete batches; any remainder smaller than max_batch_ stays in memory
+    // to be flushed normally once the connection recovers.
+    while (true) {
+        std::vector<std::string> batch;
+        {
+            std::unique_lock<std::mutex> lk(m_);
+            if (q_.size() < max_batch_) {
+                break;
+            }
+            batch.reserve(max_batch_);
+            while (!q_.empty() && batch.size() < max_batch_) {
+                batch.push_back(std::move(q_.front()));
+                q_.pop();
+            }
+            queue_depth_.store(q_.size(), std::memory_order_relaxed);
+        }
+
+        const bool stored = !batch.empty() && persistent_store_->store(batch);
+        update_persistence_metrics();
+        if (!stored) {
+            // Either nothing to store or the disk budget rejected the batch; stop here.
+            break;
+        }
+    }
 }
 
 } // namespace robot_influx_bridge
